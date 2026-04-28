@@ -93,3 +93,6 @@ export const useDeleteMultipleSports = () => {
     },
   });
 };
+
+export const useSports = useSportsList;
+export const useSport = useSportDetail;

@@ -93,3 +93,6 @@ export const useDeleteMultipleCourts = () => {
     },
   });
 };
+
+export const useCourts = useCourtsList;
+export const useCourt = useCourtDetail;

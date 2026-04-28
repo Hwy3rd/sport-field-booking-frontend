@@ -91,3 +91,6 @@ export const useDeleteMultipleVenues = () => {
     },
   });
 };
+
+export const useVenues = useVenuesList;
+export const useVenue = useVenueDetail;

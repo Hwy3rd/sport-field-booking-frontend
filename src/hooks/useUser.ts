@@ -36,10 +36,11 @@ export const useUsersList = (filter: GetAllUsersRequest = {}) =>
     staleTime: 60_000,
   });
 
-export const useUserDetail = (userId: string) =>
+export const useUserDetail = (userId: string, enabled = true) =>
   useQuery({
     queryKey: userKeys.detail(userId),
     queryFn: () => UserService.getUserById(userId),
+    enabled: enabled && !!userId,
     staleTime: 60_000,
   });
 

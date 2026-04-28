@@ -32,7 +32,7 @@ export const AuthService = {
   },
 
   refreshToken: async (): Promise<RefreshTokenResponse> => {
-    const { data } = await api.post<ApiResponse<RefreshTokenResponse>>("/auth/refresh");
+    const { data } = await api.post<ApiResponse<RefreshTokenResponse>>("/auth/refresh-token");
     if (!data.success || !data.data) {
       throw new Error(data.message || "Token refresh failed");
     }
