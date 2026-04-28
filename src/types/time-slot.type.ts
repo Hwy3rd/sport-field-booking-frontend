@@ -1,3 +1,4 @@
+import { FilterQuery } from "./api.type";
 import { TimeSlotStatus, TimeSlotWeekday } from "../lib/constants/time-slot.constant";
 import { ISODateTimeString, LocalDateString, LocalTimeString, UUID } from "./common.type";
 import { Court } from "./court.type";
@@ -40,3 +41,22 @@ export interface TimeSlot {
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
+
+export interface GetAllTimeSlotsRequest extends FilterQuery {
+  courtId?: UUID;
+  templateId?: UUID;
+  date?: LocalDateString;
+  status?: TimeSlotStatus;
+}
+
+export interface CreateTimeSlotRequest {
+  courtId: UUID;
+  templateId?: UUID;
+  date: LocalDateString;
+  startTime: LocalTimeString;
+  endTime: LocalTimeString;
+  price: number;
+  status?: TimeSlotStatus;
+}
+
+export interface UpdateTimeSlotRequest extends Partial<CreateTimeSlotRequest> {}

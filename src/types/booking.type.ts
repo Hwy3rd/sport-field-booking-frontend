@@ -1,3 +1,4 @@
+import { FilterBody, FilterQuery } from "./api.type";
 import { BookingStatus } from "../lib/constants/booking.constant";
 import { ISODateTimeString, LocalDateString, LocalTimeString, UUID } from "./common.type";
 import { TimeSlot } from "./time-slot.type";
@@ -37,4 +38,24 @@ export interface Booking {
 
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
+}
+
+export interface GetBookingHistoryRequest extends FilterQuery {
+  status?: BookingStatus;
+  startDate?: LocalDateString;
+  endDate?: LocalDateString;
+}
+
+export interface BookingFilter {
+  status?: BookingStatus;
+}
+
+export interface SearchBookingsRequest extends FilterBody<BookingFilter> {}
+
+export interface CreateBookingRequest {
+  timeSlotIds: UUID[];
+}
+
+export interface UpdateBookingRequest extends Partial<CreateBookingRequest> {
+  status?: BookingStatus;
 }

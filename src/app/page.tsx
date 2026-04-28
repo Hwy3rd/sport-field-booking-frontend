@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { env } from "@/lib/env";
+import api from "@/lib/api/axios";
 
 export default async function Home() {
   const baseUrl = env.CLOUD_API_URL ?? env.LOCAL_API_URL;
@@ -7,7 +8,10 @@ export default async function Home() {
     cache: "no-store",
   });
   const apiResponse = await response.json();
-  console.log(apiResponse);
+
+  const {data} = await api.get(`${env.LOCAL_API_URL}/auth/test`)
+  console.log("apiResponse",apiResponse);
+  console.log("axiosResponse",data);
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
