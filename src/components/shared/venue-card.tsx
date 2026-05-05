@@ -15,7 +15,15 @@ export function VenueCard({
   return (
     <Card className="surface-card transition-all hover:-translate-y-0.5 hover:shadow-md">
       <CardHeader>
-        <div className="mb-3 h-36 rounded-xl border bg-gradient-to-br from-indigo-100/70 to-cyan-100/60" />
+        {venue.imageUrl ? (
+          <img
+            src={venue.imageUrl}
+            alt={venue.name}
+            className="mb-3 h-36 w-full rounded-xl border object-cover"
+          />
+        ) : (
+          <div className="mb-3 h-36 rounded-xl border bg-gradient-to-br from-indigo-100/70 to-cyan-100/60" />
+        )}
         <CardTitle className="line-clamp-1 text-lg">{venue.name}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">

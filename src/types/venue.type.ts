@@ -32,6 +32,7 @@ export interface Venue {
   name: string;
   address: string;
   description: string;
+  imageUrl?: string;
 
   operatingHours: VenueOperatingHours;
   contactInfo: VenueContactInfo;
@@ -60,6 +61,7 @@ export interface CreateVenueRequest {
   name: string;
   address: string;
   description: string;
+  imageUrl?: string;
   operatingHours: VenueOperatingHoursPayload;
   contactInfo: VenueContactInfoPayload;
 }

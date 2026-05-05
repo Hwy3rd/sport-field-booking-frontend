@@ -9,6 +9,8 @@ const adminSidebarItems = [
   { label: "Courts", href: ADMIN_ROUTES.COURTS },
   { label: "Bookings", href: ADMIN_ROUTES.BOOKINGS },
   { label: "Sports", href: ADMIN_ROUTES.SPORTS },
+  { label: "Time Slots", href: ADMIN_ROUTES.TIME_SLOTS },
+  { label: "Slot Templates", href: ADMIN_ROUTES.TIME_SLOT_TEMPLATES },
 ];
 
 export default function AdminLayout({

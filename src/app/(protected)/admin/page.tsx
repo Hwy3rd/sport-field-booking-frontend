@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminBookingsList } from "@/hooks/useBooking";
 import { useCourts } from "@/hooks/useCourt";
-import { useSports } from "@/hooks/useSport";
+import { useSportsList } from "@/hooks/useSport";
 import { useUsersList } from "@/hooks/useUser";
 import { useVenues } from "@/hooks/useVenue";
 
@@ -15,7 +15,7 @@ export default function AdminDashboardPage() {
   const venuesQuery = useVenues({ current: 1, limit: 10, filter: {} });
   const courtsQuery = useCourts({ current: 1, limit: 10 });
   const bookingsQuery = useAdminBookingsList({ current: 1, limit: 10, filter: {} });
-  const sportsQuery = useSports({ current: 1, limit: 50 });
+  const sportsQuery = useSportsList({ current: 1, limit: 50 });
 
   const isLoading =
     usersQuery.isLoading ||
@@ -26,10 +26,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Admin dashboard"
-        description="Global overview of platform operations"
-      />
+      <PageHeader title="Admin dashboard" description="Global overview of platform operations" />
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -52,7 +49,7 @@ export default function AdminDashboardPage() {
           <CardTitle>Analytics snapshot</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 rounded-xl border bg-muted/40 grid place-items-center text-sm text-muted-foreground">
+          <div className="bg-muted/40 text-muted-foreground grid h-64 place-items-center rounded-xl border text-sm">
             Chart placeholder (traffic / bookings / revenue)
           </div>
         </CardContent>

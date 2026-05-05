@@ -49,6 +49,11 @@ export interface GetAllTimeSlotsRequest extends FilterQuery {
   status?: TimeSlotStatus;
 }
 
+export interface GetAllTimeSlotTemplatesRequest extends FilterQuery {
+  courtId?: UUID;
+  weekday?: TimeSlotWeekday;
+}
+
 export interface CreateTimeSlotRequest {
   courtId: UUID;
   templateId?: UUID;
@@ -60,3 +65,15 @@ export interface CreateTimeSlotRequest {
 }
 
 export interface UpdateTimeSlotRequest extends Partial<CreateTimeSlotRequest> {}
+
+export interface CreateTimeSlotTemplateRequest {
+  courtId: UUID;
+  weekday: TimeSlotWeekday;
+  startTime: LocalTimeString;
+  endTime: LocalTimeString;
+  price: number;
+  isActive?: boolean;
+}
+
+export interface UpdateTimeSlotTemplateRequest
+  extends Partial<CreateTimeSlotTemplateRequest> {}

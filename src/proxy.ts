@@ -12,7 +12,8 @@ const getRoleFromToken = (token?: string) => {
     if (!payload) return null;
 
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = atob(normalized);
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const decoded = atob(padded);
     const parsed = JSON.parse(decoded) as { role?: string };
     return parsed.role ?? null;
   } catch {

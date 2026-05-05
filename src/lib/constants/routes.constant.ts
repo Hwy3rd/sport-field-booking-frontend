@@ -16,6 +16,8 @@ export const OWNER_ROUTES = {
   VENUES: `${ROUTES.OWNER}/venues`,
   COURTS: `${ROUTES.OWNER}/courts`,
   BOOKINGS: `${ROUTES.OWNER}/bookings`,
+  TIME_SLOTS: `${ROUTES.OWNER}/time-slots`,
+  TIME_SLOT_TEMPLATES: `${ROUTES.OWNER}/time-slot-templates`,
 } as const;
 
 export const ADMIN_ROUTES = {
@@ -25,6 +27,8 @@ export const ADMIN_ROUTES = {
   COURTS: `${ROUTES.ADMIN}/courts`,
   BOOKINGS: `${ROUTES.ADMIN}/bookings`,
   SPORTS: `${ROUTES.ADMIN}/sports`,
+  TIME_SLOTS: `${ROUTES.ADMIN}/time-slots`,
+  TIME_SLOT_TEMPLATES: `${ROUTES.ADMIN}/time-slot-templates`,
 } as const;
 
 export const AUTH_ROUTES = [ROUTES.LOGIN, ROUTES.REGISTER];

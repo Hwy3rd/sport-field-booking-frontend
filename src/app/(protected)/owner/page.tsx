@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBookingHistory } from "@/hooks/useBooking";
 import { useCourts } from "@/hooks/useCourt";
 import { useMe } from "@/hooks/useUser";
@@ -78,6 +79,68 @@ export default function OwnerDashboardPage() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="surface-card">
+        <CardHeader>
+          <CardTitle>My venues</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(venuesQuery.data?.items?.length ?? 0) === 0 ? (
+            <EmptyState title="No venues yet" />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Operating</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(venuesQuery.data?.items ?? []).slice(0, 5).map((venue) => (
+                  <TableRow key={venue.id}>
+                    <TableCell>{venue.name}</TableCell>
+                    <TableCell>{venue.address}</TableCell>
+                    <TableCell>
+                      {venue.operatingHours?.startTime} - {venue.operatingHours?.endTime}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="surface-card">
+        <CardHeader>
+          <CardTitle>My courts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ownerCourts.length === 0 ? (
+            <EmptyState title="No courts yet" />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Venue</TableHead>
+                  <TableHead className="text-right">Price/hour</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ownerCourts.slice(0, 8).map((court) => (
+                  <TableRow key={court.id}>
+                    <TableCell>{court.name}</TableCell>
+                    <TableCell>{court.venue?.name ?? court.venueId.slice(0, 8)}</TableCell>
+                    <TableCell className="text-right">{court.pricePerHour.toLocaleString()} VND</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

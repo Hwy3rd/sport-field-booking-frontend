@@ -7,6 +7,8 @@ const ownerSidebarItems = [
   { label: "Venues", href: OWNER_ROUTES.VENUES },
   { label: "Courts", href: OWNER_ROUTES.COURTS },
   { label: "Bookings", href: OWNER_ROUTES.BOOKINGS },
+  { label: "Time Slots", href: OWNER_ROUTES.TIME_SLOTS },
+  { label: "Slot Templates", href: OWNER_ROUTES.TIME_SLOT_TEMPLATES },
 ];
 
 export default function OwnerLayout({

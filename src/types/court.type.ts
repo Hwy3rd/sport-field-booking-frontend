@@ -1,6 +1,7 @@
 import { FilterQuery } from "./api.type";
 import { CourtStatus } from "../lib/constants/court.constant";
 import { ISODateTimeString, UUID } from "./common.type";
+import { TimeSlotStatus, TimeSlotWeekday } from "../lib/constants/time-slot.constant";
 import { Sport } from "./sport.type";
 import { Venue } from "./venue.type";
 
@@ -39,6 +40,24 @@ export interface CreateCourtRequest {
   name: string;
   pricePerHour: number;
   imageUrl?: string | null;
+  timeSlotConfig?: {
+    manualSlots?: Array<{
+      date: string;
+      startTime: string;
+      endTime: string;
+      price: number;
+      status?: TimeSlotStatus;
+    }>;
+    templateGeneration?: {
+      startDate: string;
+      endDate: string;
+      weekday: TimeSlotWeekday;
+      startTime: string;
+      endTime: string;
+      price: number;
+      createTemplate?: boolean;
+    };
+  };
 }
 
 export interface UpdateCourtRequest extends Partial<CreateCourtRequest> {

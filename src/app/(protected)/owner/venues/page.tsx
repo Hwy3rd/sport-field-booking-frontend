@@ -8,24 +8,10 @@ import { z } from "zod";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePagination } from "@/components/shared/table-pagination";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Pagination } from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMe } from "@/hooks/useUser";
@@ -38,19 +24,13 @@ import {
   useVenues,
 } from "@/hooks/useVenue";
 import type { Venue } from "@/types/venue.type";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { OwnerVenuesDialogs } from "./dialogs";
 
 const createVenueSchema = z.object({
   name: z.string().min(2, "Venue name is required"),
   address: z.string().min(3, "Address is required"),
   description: z.string().min(3, "Description is required"),
+  imageUrl: z.union([z.string().url("Invalid image URL"), z.literal("")]),
   startTime: z.string().min(4, "Start time is required"),
   endTime: z.string().min(4, "End time is required"),
   phone: z.string().min(7, "Phone is required"),
@@ -99,6 +79,7 @@ export default function OwnerVenuesPage() {
       name: "",
       address: "",
       description: "",
+      imageUrl: "",
       startTime: "06:00",
       endTime: "22:00",
       phone: "",
@@ -111,6 +92,7 @@ export default function OwnerVenuesPage() {
       name: "",
       address: "",
       description: "",
+      imageUrl: "",
       startTime: "06:00",
       endTime: "22:00",
       phone: "",
@@ -126,6 +108,7 @@ export default function OwnerVenuesPage() {
         name: values.name,
         address: values.address,
         description: values.description,
+        imageUrl: values.imageUrl || undefined,
         operatingHours: {
           startTime: values.startTime,
           endTime: values.endTime,
@@ -153,6 +136,7 @@ export default function OwnerVenuesPage() {
           name: values.name,
           address: values.address,
           description: values.description,
+          imageUrl: values.imageUrl || undefined,
           operatingHours: {
             startTime: values.startTime,
             endTime: values.endTime,
@@ -288,6 +272,7 @@ export default function OwnerVenuesPage() {
                           name: venue.name,
                           address: venue.address,
                           description: venue.description,
+                          imageUrl: venue.imageUrl ?? "",
                           startTime: venue.operatingHours?.startTime ?? "06:00",
                           endTime: venue.operatingHours?.endTime ?? "22:00",
                           phone: venue.contactInfo?.phone ?? "",
@@ -315,353 +300,44 @@ export default function OwnerVenuesPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Pagination
-          current={venuesQuery.data?.current ?? page}
-          totalPages={venuesQuery.data?.totalPages ?? 1}
-          onChange={(value) => {
+      <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
+        <TablePagination
+          currentPage={venuesQuery.data?.current ?? page}
+          total={venuesQuery.data?.total ?? 0}
+          pageSize={limit}
+          onChangePage={(value) => {
             setSelectedIds([]);
             setPage(value);
           }}
+          onChangePageSize={(value) => {
+            setPage(1);
+            setSelectedIds([]);
+            setLimit(value);
+          }}
         />
-        <div className="flex items-center gap-2">
-          <Select
-            value={String(page)}
-            onValueChange={(value) => {
-              setSelectedIds([]);
-              setPage(Number(value));
-            }}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue placeholder="Page" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: venuesQuery.data?.totalPages ?? 1 }).map((_, index) => {
-                const value = index + 1;
-                return (
-                  <SelectItem key={value} value={String(value)}>
-                    Page {value}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-          <Select
-            value={String(limit)}
-            onValueChange={(value) => {
-              setPage(1);
-              setSelectedIds([]);
-              setLimit(Number(value));
-            }}
-          >
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Page size" />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 20, 50].map((item) => (
-                <SelectItem key={item} value={String(item)}>
-                  {item} / page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      </Card>
 
-      <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Filter venues</DialogTitle>
-            <DialogDescription>Apply backend filter for venue address.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Address contains</div>
-            <Input
-              value={draftFilterAddress}
-              onChange={(event) => setDraftFilterAddress(event.target.value)}
-              placeholder="District, street..."
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDraftFilterAddress("");
-                setFilterAddress("");
-              }}
-            >
-              Reset
-            </Button>
-            <Button
-              onClick={() => {
-                setPage(1);
-                setFilterAddress(draftFilterAddress.trim());
-                setIsFilterOpen(false);
-              }}
-            >
-              Apply
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create venue</DialogTitle>
-            <DialogDescription>Add a new venue for your owner account.</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(submit)}>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Open time</FormLabel>
-                    <FormControl>
-                      <Input placeholder="06:00" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Close time</FormLabel>
-                    <FormControl>
-                      <Input placeholder="22:00" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter className="md:col-span-2">
-                <Button type="submit" disabled={createVenueMutation.isPending}>
-                  {createVenueMutation.isPending ? "Creating..." : "Create venue"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!editingVenue}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingVenue(null);
-            editForm.reset();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit venue</DialogTitle>
-            <DialogDescription>Update venue information and operating details.</DialogDescription>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={editForm.handleSubmit(submitEdit)}>
-              <FormField
-                control={editForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Open time</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="endTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Close time</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter className="md:col-span-2">
-                <Button type="submit" disabled={updateVenueMutation.isPending}>
-                  {updateVenueMutation.isPending ? "Saving..." : "Save changes"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!detailVenueId} onOpenChange={(open) => !open && setDetailVenueId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Venue detail</DialogTitle>
-            <DialogDescription>Data loaded from venue detail API.</DialogDescription>
-          </DialogHeader>
-          {detailVenueQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : detailVenueQuery.data ? (
-            <div className="space-y-2 text-sm">
-              <div><span className="font-medium">ID:</span> {detailVenueQuery.data.id}</div>
-              <div><span className="font-medium">Name:</span> {detailVenueQuery.data.name}</div>
-              <div><span className="font-medium">Address:</span> {detailVenueQuery.data.address}</div>
-              <div><span className="font-medium">Description:</span> {detailVenueQuery.data.description}</div>
-              <div><span className="font-medium">Owner ID:</span> {detailVenueQuery.data.ownerId}</div>
-              <div>
-                <span className="font-medium">Operating:</span>{" "}
-                {detailVenueQuery.data.operatingHours?.startTime} - {detailVenueQuery.data.operatingHours?.endTime}
-              </div>
-              <div><span className="font-medium">Phone:</span> {detailVenueQuery.data.contactInfo?.phone ?? "-"}</div>
-              <div><span className="font-medium">Email:</span> {detailVenueQuery.data.contactInfo?.email ?? "-"}</div>
-            </div>
-          ) : (
-            <EmptyState title="No detail found" />
-          )}
-        </DialogContent>
-      </Dialog>
+      <OwnerVenuesDialogs
+        isFilterOpen={isFilterOpen}
+        setIsFilterOpen={setIsFilterOpen}
+        draftFilterAddress={draftFilterAddress}
+        setDraftFilterAddress={setDraftFilterAddress}
+        setFilterAddress={setFilterAddress}
+        setPage={setPage}
+        isCreateOpen={isCreateOpen}
+        setIsCreateOpen={setIsCreateOpen}
+        form={form}
+        submit={submit}
+        createVenueMutation={createVenueMutation}
+        editingVenue={editingVenue}
+        setEditingVenue={setEditingVenue}
+        editForm={editForm}
+        submitEdit={submitEdit}
+        updateVenueMutation={updateVenueMutation}
+        detailVenueId={detailVenueId}
+        setDetailVenueId={setDetailVenueId}
+        detailVenueQuery={detailVenueQuery}
+      />
     </div>
   );
 }

@@ -8,44 +8,29 @@ import { useForm } from "react-hook-form";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Pagination } from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   useCreateSport,
   useDeleteMultipleSports,
   useDeleteSport,
   useSportDetail,
-  useSports,
+  useSportsList,
   useUpdateSport,
 } from "@/hooks/useSport";
 import type { Sport } from "@/types/sport.type";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { TablePagination } from "@/components/shared/table-pagination";
+import { Card } from "@/components/ui/card";
+import { SportsDialogs } from "./dialogs";
 
 const createSportSchema = z.object({
   name: z.string().min(2, "Sport name is required"),
@@ -66,7 +51,7 @@ export default function AdminSportsPage() {
   const [editingSport, setEditingSport] = useState<Sport | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [detailSportId, setDetailSportId] = useState<string | null>(null);
-  const sportsQuery = useSports({
+  const sportsQuery = useSportsList({
     current: page,
     limit,
     name: filterName || search || undefined,
@@ -77,7 +62,8 @@ export default function AdminSportsPage() {
   const deleteSportMutation = useDeleteSport();
   const sportDetailQuery = useSportDetail(detailSportId ?? "", !!detailSportId);
   const pageItems = sportsQuery.data?.items ?? [];
-  const isAllSelected = pageItems.length > 0 && pageItems.every((item) => selectedIds.includes(item.id));
+  const isAllSelected =
+    pageItems.length > 0 && pageItems.every((item: Sport) => selectedIds.includes(item.id));
 
   const form = useForm<CreateSportForm>({
     resolver: zodResolver(createSportSchema as any),
@@ -96,7 +82,10 @@ export default function AdminSportsPage() {
 
   const submit = (values: CreateSportForm) => {
     createSportMutation.mutate(values, {
-      onSuccess: () => form.reset(),
+      onSuccess: () => {
+        setIsCreateOpen(false);
+        form.reset();
+      },
     });
   };
   const submitEdit = (values: CreateSportForm) => {
@@ -178,7 +167,7 @@ export default function AdminSportsPage() {
                     checked={isAllSelected}
                     onChange={(event) => {
                       if (event.target.checked) {
-                        setSelectedIds(pageItems.map((item) => item.id));
+                        setSelectedIds(pageItems.map((item: Sport) => item.id));
                         return;
                       }
                       setSelectedIds([]);
@@ -187,13 +176,16 @@ export default function AdminSportsPage() {
                 </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(sportsQuery.data?.items ?? []).map((sport) => (
-                <TableRow key={sport.id} className="cursor-pointer" onClick={() => setDetailSportId(sport.id)}>
+              {(sportsQuery.data?.items ?? []).map((sport: Sport) => (
+                <TableRow
+                  key={sport.id}
+                  className="cursor-pointer"
+                  onClick={() => setDetailSportId(sport.id)}
+                >
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -208,9 +200,8 @@ export default function AdminSportsPage() {
                     />
                   </TableCell>
                   <TableCell>{sport.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{sport.description ?? "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">active</Badge>
+                  <TableCell className="text-muted-foreground">
+                    {sport.description ?? "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -246,215 +237,44 @@ export default function AdminSportsPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Pagination
-          current={sportsQuery.data?.current ?? page}
-          totalPages={sportsQuery.data?.totalPages ?? 1}
-          onChange={(value) => {
+      <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
+        <TablePagination
+          currentPage={sportsQuery.data?.current ?? page}
+          total={sportsQuery.data?.total ?? 0}
+          pageSize={limit}
+          onChangePage={(value) => {
             setSelectedIds([]);
             setPage(value);
           }}
+          onChangePageSize={(value) => {
+            setPage(1);
+            setSelectedIds([]);
+            setLimit(value);
+          }}
         />
-        <div className="flex items-center gap-2">
-          <Select
-            value={String(page)}
-            onValueChange={(value) => {
-              setSelectedIds([]);
-              setPage(Number(value));
-            }}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue placeholder="Page" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: sportsQuery.data?.totalPages ?? 1 }).map((_, index) => {
-                const value = index + 1;
-                return (
-                  <SelectItem key={value} value={String(value)}>
-                    Page {value}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-          <Select
-            value={String(limit)}
-            onValueChange={(value) => {
-              setPage(1);
-              setSelectedIds([]);
-              setLimit(Number(value));
-            }}
-          >
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Page size" />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 20, 50].map((item) => (
-                <SelectItem key={item} value={String(item)}>
-                  {item} / page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      </Card>
 
-      <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Filter sports</DialogTitle>
-            <DialogDescription>Apply backend filter by sport name.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Name contains</div>
-            <Input
-              value={draftFilterName}
-              onChange={(event) => setDraftFilterName(event.target.value)}
-              placeholder="e.g. Football"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDraftFilterName("");
-                setFilterName("");
-              }}
-            >
-              Reset
-            </Button>
-            <Button
-              onClick={() => {
-                setPage(1);
-                setFilterName(draftFilterName.trim());
-                setIsFilterOpen(false);
-              }}
-            >
-              Apply
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create sport</DialogTitle>
-            <DialogDescription>Add a new sport type.</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Football" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional description" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="submit" disabled={createSportMutation.isPending}>
-                  {createSportMutation.isPending ? "Creating..." : "Create sport"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!editingSport}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingSport(null);
-            editForm.reset();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit sport</DialogTitle>
-            <DialogDescription>Update sport name and description.</DialogDescription>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form className="space-y-4" onSubmit={editForm.handleSubmit(submitEdit)}>
-              <FormField
-                control={editForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="submit" disabled={updateSportMutation.isPending}>
-                  {updateSportMutation.isPending ? "Saving..." : "Save changes"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!detailSportId} onOpenChange={(open) => !open && setDetailSportId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sport detail</DialogTitle>
-            <DialogDescription>Data loaded from sport detail API.</DialogDescription>
-          </DialogHeader>
-          {sportDetailQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-1/2" />
-            </div>
-          ) : sportDetailQuery.data ? (
-            <div className="space-y-2 text-sm">
-              <div><span className="font-medium">ID:</span> {sportDetailQuery.data.id}</div>
-              <div><span className="font-medium">Name:</span> {sportDetailQuery.data.name}</div>
-              <div><span className="font-medium">Description:</span> {sportDetailQuery.data.description ?? "-"}</div>
-            </div>
-          ) : (
-            <EmptyState title="No detail found" />
-          )}
-        </DialogContent>
-      </Dialog>
+      <SportsDialogs
+        isFilterOpen={isFilterOpen}
+        setIsFilterOpen={setIsFilterOpen}
+        draftFilterName={draftFilterName}
+        setDraftFilterName={setDraftFilterName}
+        setFilterName={setFilterName}
+        setPage={setPage}
+        isCreateOpen={isCreateOpen}
+        setIsCreateOpen={setIsCreateOpen}
+        form={form}
+        submit={submit}
+        createSportMutation={createSportMutation as any}
+        editingSport={editingSport}
+        setEditingSport={setEditingSport}
+        editForm={editForm}
+        submitEdit={submitEdit}
+        updateSportMutation={updateSportMutation as any}
+        detailSportId={detailSportId}
+        setDetailSportId={setDetailSportId}
+        sportDetailQuery={sportDetailQuery}
+      />
     </div>
   );
 }
