@@ -35,7 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useCourts } from "@/hooks/useCourt";
 import {
   useCreateTimeSlot,
@@ -168,7 +175,11 @@ export default function AdminTimeSlotsPage() {
                     >
                       Edit
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => deleteMutation.mutate(slot.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deleteMutation.mutate(slot.id)}
+                    >
                       Delete
                     </Button>
                   </TableCell>
@@ -301,7 +312,10 @@ export default function AdminTimeSlotsPage() {
                 )}
               />
               <DialogFooter className="md:col-span-2">
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
                   {createMutation.isPending || updateMutation.isPending
                     ? "Saving..."
                     : editingId

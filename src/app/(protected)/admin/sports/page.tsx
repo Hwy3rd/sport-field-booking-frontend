@@ -1,14 +1,23 @@
 "use client";
 
-import { RefreshCcw, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { Pencil, RefreshCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePagination } from "@/components/shared/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,34 +36,30 @@ import {
   useSportsList,
   useUpdateSport,
 } from "@/hooks/useSport";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { Sport } from "@/types/sport.type";
-import { TablePagination } from "@/components/shared/table-pagination";
-import { Card } from "@/components/ui/card";
-import { SportsDialogs } from "./dialogs";
-
-const createSportSchema = z.object({
-  name: z.string().min(2, "Sport name is required"),
-  description: z.string().optional(),
-});
-
-type CreateSportForm = z.infer<typeof createSportSchema>;
+import { SportDetailDialog } from "./dialogs/sport-detail-dialog";
+import { SportFilterDialog } from "./dialogs/sport-filter-dialog";
+import { SportFormDialog } from "./dialogs/sport-form-dialog";
 
 export default function AdminSportsPage() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [current, setCurrent] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState("");
-  const [search, setSearch] = useState("");
   const [filterName, setFilterName] = useState("");
   const [draftFilterName, setDraftFilterName] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [editingSport, setEditingSport] = useState<Sport | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteSportId, setDeleteSportId] = useState<string | null>(null);
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
   const [detailSportId, setDetailSportId] = useState<string | null>(null);
+  const debouncedKeyword = useDebounce(keyword.trim(), 500);
   const sportsQuery = useSportsList({
-    current: page,
-    limit,
-    name: filterName || search || undefined,
+    current,
+    limit: pageSize,
+    name: filterName || debouncedKeyword || undefined,
   });
   const createSportMutation = useCreateSport();
   const deleteMultipleSportsMutation = useDeleteMultipleSports();
@@ -62,46 +67,74 @@ export default function AdminSportsPage() {
   const deleteSportMutation = useDeleteSport();
   const sportDetailQuery = useSportDetail(detailSportId ?? "", !!detailSportId);
   const pageItems = sportsQuery.data?.items ?? [];
-  const isAllSelected =
-    pageItems.length > 0 && pageItems.every((item: Sport) => selectedIds.includes(item.id));
+  const isAllSelected = useMemo(
+    () => pageItems.length > 0 && pageItems.every((item: Sport) => selectedIds.includes(item.id)),
+    [pageItems, selectedIds],
+  );
 
-  const form = useForm<CreateSportForm>({
-    resolver: zodResolver(createSportSchema as any),
-    defaultValues: {
-      name: "",
-      description: "",
-    },
-  });
-  const editForm = useForm<CreateSportForm>({
-    resolver: zodResolver(createSportSchema as any),
-    defaultValues: {
-      name: "",
-      description: "",
-    },
-  });
-
-  const submit = (values: CreateSportForm) => {
-    createSportMutation.mutate(values, {
-      onSuccess: () => {
-        setIsCreateOpen(false);
-        form.reset();
-      },
-    });
+  const submit = async (values: { name: string; description?: string }) => {
+    try {
+      await createSportMutation.mutateAsync(values);
+      setFormMode(null);
+      sportsQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
   };
-  const submitEdit = (values: CreateSportForm) => {
+
+  const submitEdit = async (values: { name: string; description?: string }) => {
     if (!editingSport) return;
-    updateSportMutation.mutate(
-      {
+    try {
+      await updateSportMutation.mutateAsync({
         sportId: editingSport.id,
         payload: values,
-      },
-      {
-        onSuccess: () => {
-          setEditingSport(null);
-          editForm.reset();
-        },
-      },
-    );
+      });
+      setEditingSport(null);
+      setFormMode(null);
+      sportsQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteSport = async () => {
+    if (!deleteSportId) return;
+    try {
+      await deleteSportMutation.mutateAsync(deleteSportId);
+      setSelectedIds((prev) => prev.filter((id) => id !== deleteSportId));
+      setDeleteSportId(null);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteSelectedSports = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await deleteMultipleSportsMutation.mutateAsync(selectedIds);
+      setSelectedIds([]);
+      setDeleteSelectedOpen(false);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  useEffect(() => {
+    setCurrent(1);
+  }, [debouncedKeyword]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [current, pageSize, filterName, debouncedKeyword]);
+
+  const openCreateSport = () => {
+    setEditingSport(null);
+    setFormMode("create");
+  };
+
+  const openEditSport = (sport: Sport) => {
+    setEditingSport(sport);
+    setFormMode("edit");
   };
 
   return (
@@ -115,14 +148,6 @@ export default function AdminSportsPage() {
           onChange={(event) => setKeyword(event.target.value)}
           className="w-full md:max-w-sm"
         />
-        <Button
-          onClick={() => {
-            setPage(1);
-            setSearch(keyword.trim());
-          }}
-        >
-          Search
-        </Button>
         <Button variant="outline" onClick={() => sportsQuery.refetch()}>
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
@@ -137,16 +162,9 @@ export default function AdminSportsPage() {
           <SlidersHorizontal className="mr-2 h-4 w-4" />
           Filter
         </Button>
-        <Button onClick={() => setIsCreateOpen(true)}>Create new</Button>
+        <Button onClick={openCreateSport}>Create new</Button>
         {selectedIds.length > 0 ? (
-          <Button
-            variant="destructive"
-            onClick={() => {
-              deleteMultipleSportsMutation.mutate(selectedIds, {
-                onSuccess: () => setSelectedIds([]),
-              });
-            }}
-          >
+          <Button variant="destructive" onClick={() => setDeleteSelectedOpen(true)}>
             Delete selected ({selectedIds.length})
           </Button>
         ) : null}
@@ -205,29 +223,26 @@ export default function AdminSportsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setEditingSport(sport);
-                        editForm.reset({
-                          name: sport.name,
-                          description: sport.description ?? "",
-                        });
+                        openEditSport(sport);
                       }}
                     >
-                      Edit
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteSportMutation.mutate(sport.id);
+                        setDeleteSportId(sport.id);
                       }}
                     >
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -239,42 +254,95 @@ export default function AdminSportsPage() {
 
       <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
         <TablePagination
-          currentPage={sportsQuery.data?.current ?? page}
+          currentPage={sportsQuery.data?.current ?? current}
           total={sportsQuery.data?.total ?? 0}
-          pageSize={limit}
+          pageSize={pageSize}
           onChangePage={(value) => {
             setSelectedIds([]);
-            setPage(value);
+            setCurrent(value);
           }}
           onChangePageSize={(value) => {
-            setPage(1);
+            setCurrent(1);
             setSelectedIds([]);
-            setLimit(value);
+            setPageSize(value);
           }}
         />
       </Card>
 
-      <SportsDialogs
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
+      <SportFilterDialog
+        open={isFilterOpen}
+        onOpenChange={setIsFilterOpen}
         draftFilterName={draftFilterName}
-        setDraftFilterName={setDraftFilterName}
-        setFilterName={setFilterName}
-        setPage={setPage}
-        isCreateOpen={isCreateOpen}
-        setIsCreateOpen={setIsCreateOpen}
-        form={form}
-        submit={submit}
-        createSportMutation={createSportMutation as any}
-        editingSport={editingSport}
-        setEditingSport={setEditingSport}
-        editForm={editForm}
-        submitEdit={submitEdit}
-        updateSportMutation={updateSportMutation as any}
+        onDraftFilterNameChange={setDraftFilterName}
+        onApply={(nextName) => {
+          setCurrent(1);
+          setFilterName(nextName);
+        }}
+      />
+      <SportFormDialog
+        mode={formMode}
+        sport={editingSport}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFormMode(null);
+            setEditingSport(null);
+          }
+        }}
+        onCreate={submit}
+        onEdit={submitEdit}
+        isCreating={createSportMutation.isPending}
+        isUpdating={updateSportMutation.isPending}
+      />
+      <SportDetailDialog
         detailSportId={detailSportId}
         setDetailSportId={setDetailSportId}
         sportDetailQuery={sportDetailQuery}
       />
+
+      <AlertDialog
+        open={!!deleteSportId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteSportId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete sport?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The selected sport will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSport}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={setDeleteSelectedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected sports?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete {selectedIds.length} selected sport(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedSports}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

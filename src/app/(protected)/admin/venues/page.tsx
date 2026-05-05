@@ -1,14 +1,24 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { RefreshCcw, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Pencil, RefreshCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePagination } from "@/components/shared/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,9 +40,12 @@ import {
   useVenues,
 } from "@/hooks/useVenue";
 import { useUsersList } from "@/hooks/useUser";
+import { useDebounce } from "@/hooks/useDebounce";
 import { USER_ROLE } from "@/lib/constants/user.constant";
 import type { Venue } from "@/types/venue.type";
-import { AdminVenuesDialogs } from "./dialogs";
+import { VenueDetailDialog } from "./dialogs/venue-detail-dialog";
+import { VenueFilterDialog } from "./dialogs/venue-filter-dialog";
+import { VenueFormDialog } from "./dialogs/venue-form-dialog";
 
 const createVenueSchema = z.object({
   ownerId: z.string().min(1, "Owner is required"),
@@ -47,19 +60,46 @@ const createVenueSchema = z.object({
 });
 
 type CreateVenueForm = z.infer<typeof createVenueSchema>;
+const getVenueStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "active":
+      return "success" as const;
+    case "maintenance":
+      return "warning" as const;
+    case "deleted":
+      return "destructive" as const;
+    default:
+      return "outline" as const;
+  }
+};
+
+const getVenueStatusBadgeClassName = (status: string) => {
+  switch (status) {
+    case "active":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "maintenance":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "deleted":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    default:
+      return "";
+  }
+};
 
 export default function AdminVenuesPage() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [current, setCurrent] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState("");
-  const [search, setSearch] = useState("");
   const [filterOwnerId, setFilterOwnerId] = useState<string>("all");
   const [draftFilterOwnerId, setDraftFilterOwnerId] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
   const [detailVenueId, setDetailVenueId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteVenueId, setDeleteVenueId] = useState<string | null>(null);
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
+  const debouncedKeyword = useDebounce(keyword.trim(), 500);
 
   const createVenueMutation = useCreateVenue();
   const deleteMultipleVenuesMutation = useDeleteMultipleVenues();
@@ -67,11 +107,11 @@ export default function AdminVenuesPage() {
   const updateVenueMutation = useUpdateVenue();
   const usersQuery = useUsersList({ current: 1, limit: 100 });
   const venuesQuery = useVenues({
-    current: page,
-    limit,
+    current,
+    limit: pageSize,
     filter: {
-      name: search || undefined,
-      address: search || undefined,
+      name: debouncedKeyword || undefined,
+      address: debouncedKeyword || undefined,
       ownerId: filterOwnerId === "all" ? undefined : filterOwnerId,
     },
   });
@@ -87,38 +127,9 @@ export default function AdminVenuesPage() {
   const venues = venuesQuery.data?.items ?? [];
   const isAllSelected = venues.length > 0 && venues.every((item) => selectedIds.includes(item.id));
 
-  const form = useForm<CreateVenueForm>({
-    resolver: zodResolver(createVenueSchema as any),
-    defaultValues: {
-      ownerId: "",
-      name: "",
-      address: "",
-      description: "",
-      imageUrl: "",
-      startTime: "06:00",
-      endTime: "22:00",
-      phone: "",
-      email: "",
-    },
-  });
-  const editForm = useForm<CreateVenueForm>({
-    resolver: zodResolver(createVenueSchema as any),
-    defaultValues: {
-      ownerId: "",
-      name: "",
-      address: "",
-      description: "",
-      imageUrl: "",
-      startTime: "06:00",
-      endTime: "22:00",
-      phone: "",
-      email: "",
-    },
-  });
-
-  const submit = (values: CreateVenueForm) => {
-    createVenueMutation.mutate(
-      {
+  const submit = async (values: CreateVenueForm) => {
+    try {
+      await createVenueMutation.mutateAsync({
         ownerId: values.ownerId,
         name: values.name,
         address: values.address,
@@ -132,20 +143,18 @@ export default function AdminVenuesPage() {
           phone: values.phone,
           email: values.email,
         },
-      },
-      {
-        onSuccess: () => {
-          setIsCreateOpen(false);
-          form.reset();
-        },
-      },
-    );
+      });
+      setFormMode(null);
+      venuesQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
   };
 
-  const submitEdit = (values: CreateVenueForm) => {
+  const submitEdit = async (values: CreateVenueForm) => {
     if (!editingVenue) return;
-    updateVenueMutation.mutate(
-      {
+    try {
+      await updateVenueMutation.mutateAsync({
         venueId: editingVenue.id,
         payload: {
           ownerId: values.ownerId,
@@ -162,14 +171,53 @@ export default function AdminVenuesPage() {
             email: values.email,
           },
         },
-      },
-      {
-        onSuccess: () => {
-          setEditingVenue(null);
-          editForm.reset();
-        },
-      },
-    );
+      });
+      setEditingVenue(null);
+      setFormMode(null);
+      venuesQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteVenue = async () => {
+    if (!deleteVenueId) return;
+    try {
+      await deleteVenueMutation.mutateAsync(deleteVenueId);
+      setSelectedIds((prev) => prev.filter((id) => id !== deleteVenueId));
+      setDeleteVenueId(null);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteSelectedVenues = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await deleteMultipleVenuesMutation.mutateAsync(selectedIds);
+      setSelectedIds([]);
+      setDeleteSelectedOpen(false);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  useEffect(() => {
+    setCurrent(1);
+  }, [debouncedKeyword]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [current, pageSize, filterOwnerId, debouncedKeyword]);
+
+  const openCreateVenue = () => {
+    setEditingVenue(null);
+    setFormMode("create");
+  };
+
+  const openEditVenue = (venue: Venue) => {
+    setEditingVenue(venue);
+    setFormMode("edit");
   };
 
   return (
@@ -183,14 +231,6 @@ export default function AdminVenuesPage() {
           onChange={(event) => setKeyword(event.target.value)}
           className="w-full md:max-w-sm"
         />
-        <Button
-          onClick={() => {
-            setPage(1);
-            setSearch(keyword.trim());
-          }}
-        >
-          Search
-        </Button>
         <Button variant="outline" onClick={() => venuesQuery.refetch()}>
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
@@ -205,16 +245,9 @@ export default function AdminVenuesPage() {
           <SlidersHorizontal className="mr-2 h-4 w-4" />
           Filter
         </Button>
-        <Button onClick={() => setIsCreateOpen(true)}>Create new</Button>
+        <Button onClick={openCreateVenue}>Create new</Button>
         {selectedIds.length > 0 ? (
-          <Button
-            variant="destructive"
-            onClick={() => {
-              deleteMultipleVenuesMutation.mutate(selectedIds, {
-                onSuccess: () => setSelectedIds([]),
-              });
-            }}
-          >
+          <Button variant="destructive" onClick={() => setDeleteSelectedOpen(true)}>
             Delete selected ({selectedIds.length})
           </Button>
         ) : null}
@@ -276,39 +309,36 @@ export default function AdminVenuesPage() {
                   <TableCell>
                     {venue.operatingHours?.startTime} - {venue.operatingHours?.endTime}
                   </TableCell>
-                  <TableCell>{venue.status}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={getVenueStatusBadgeVariant(venue.status)}
+                      className={`capitalize ${getVenueStatusBadgeClassName(venue.status)}`}
+                    >
+                      {venue.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setEditingVenue(venue);
-                        editForm.reset({
-                          ownerId: venue.ownerId,
-                          name: venue.name,
-                          address: venue.address,
-                          description: venue.description,
-                          imageUrl: venue.imageUrl ?? "",
-                          startTime: venue.operatingHours?.startTime ?? "06:00",
-                          endTime: venue.operatingHours?.endTime ?? "22:00",
-                          phone: venue.contactInfo?.phone ?? "",
-                          email: venue.contactInfo?.email ?? "",
-                        });
+                        openEditVenue(venue);
                       }}
                     >
-                      Edit
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteVenueMutation.mutate(venue.id);
+                        setDeleteVenueId(venue.id);
                       }}
                     >
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -320,43 +350,97 @@ export default function AdminVenuesPage() {
 
       <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
         <TablePagination
-          currentPage={venuesQuery.data?.current ?? page}
+          currentPage={venuesQuery.data?.current ?? current}
           total={venuesQuery.data?.total ?? 0}
-          pageSize={limit}
+          pageSize={pageSize}
           onChangePage={(value) => {
             setSelectedIds([]);
-            setPage(value);
+            setCurrent(value);
           }}
           onChangePageSize={(value) => {
-            setPage(1);
+            setCurrent(1);
             setSelectedIds([]);
-            setLimit(value);
+            setPageSize(value);
           }}
         />
       </Card>
 
-      <AdminVenuesDialogs
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
-        draftFilterOwnerId={draftFilterOwnerId}
-        setDraftFilterOwnerId={setDraftFilterOwnerId}
-        setFilterOwnerId={setFilterOwnerId}
+      <VenueFilterDialog
+        open={isFilterOpen}
+        onOpenChange={setIsFilterOpen}
+        draftOwnerId={draftFilterOwnerId}
+        onDraftOwnerIdChange={setDraftFilterOwnerId}
         ownerOptions={ownerOptions}
-        setPage={setPage}
-        isCreateOpen={isCreateOpen}
-        setIsCreateOpen={setIsCreateOpen}
-        form={form}
-        submit={submit}
-        createVenueMutation={createVenueMutation}
-        editingVenue={editingVenue}
-        setEditingVenue={setEditingVenue}
-        editForm={editForm}
-        submitEdit={submitEdit}
-        updateVenueMutation={updateVenueMutation}
+        onApply={(ownerId) => {
+          setCurrent(1);
+          setFilterOwnerId(ownerId);
+        }}
+      />
+      <VenueFormDialog
+        mode={formMode}
+        venue={editingVenue}
+        ownerOptions={ownerOptions}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFormMode(null);
+            setEditingVenue(null);
+          }
+        }}
+        onCreate={submit}
+        onEdit={submitEdit}
+        isCreating={createVenueMutation.isPending}
+        isUpdating={updateVenueMutation.isPending}
+      />
+      <VenueDetailDialog
         detailVenueId={detailVenueId}
         setDetailVenueId={setDetailVenueId}
         detailVenueQuery={detailVenueQuery}
       />
+
+      <AlertDialog
+        open={!!deleteVenueId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteVenueId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete venue?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The selected venue will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVenue}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={setDeleteSelectedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected venues?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete {selectedIds.length} selected venue(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedVenues}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

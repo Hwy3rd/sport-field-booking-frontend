@@ -45,7 +45,10 @@ import {
 } from "@/hooks/useTimeSlot";
 import { useMe } from "@/hooks/useUser";
 import { useVenues } from "@/hooks/useVenue";
-import { TIME_SLOT_WEEKDAY_VALUES } from "@/lib/constants/time-slot.constant";
+import {
+  TIME_SLOT_WEEKDAY_LABEL_VI,
+  TIME_SLOT_WEEKDAY_VALUES,
+} from "@/lib/constants/time-slot.constant";
 import type { TimeSlotWeekday } from "@/lib/constants/time-slot.constant";
 
 const schema = z.object({
@@ -59,16 +62,6 @@ const schema = z.object({
   isActive: z.enum(["true", "false"]),
 });
 type FormValue = z.infer<typeof schema>;
-
-const WEEKDAY_LABEL: Record<number, string> = {
-  1: "Monday",
-  2: "Tuesday",
-  3: "Wednesday",
-  4: "Thursday",
-  5: "Friday",
-  6: "Saturday",
-  7: "Sunday",
-};
 
 export default function OwnerTimeSlotTemplatesPage() {
   const [page, setPage] = useState(1);
@@ -191,7 +184,7 @@ export default function OwnerTimeSlotTemplatesPage() {
                     {ownerCourts.find((court) => court.id === template.courtId)?.name ??
                       template.courtId.slice(0, 8)}
                   </TableCell>
-                  <TableCell>{WEEKDAY_LABEL[template.weekday] ?? template.weekday}</TableCell>
+                  <TableCell>{TIME_SLOT_WEEKDAY_LABEL_VI[template.weekday] ?? template.weekday}</TableCell>
                   <TableCell>
                     {template.startTime} - {template.endTime}
                   </TableCell>
@@ -288,7 +281,7 @@ export default function OwnerTimeSlotTemplatesPage() {
                       <SelectContent>
                         {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => (
                           <SelectItem key={weekday} value={String(weekday)}>
-                            {WEEKDAY_LABEL[weekday]}
+                            {TIME_SLOT_WEEKDAY_LABEL_VI[weekday]}
                           </SelectItem>
                         ))}
                       </SelectContent>

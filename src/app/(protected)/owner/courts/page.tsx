@@ -29,10 +29,12 @@ import {
   useDeleteMultipleCourts,
   useUpdateCourt,
 } from "@/hooks/useCourt";
+import { useTimeSlots, useUpdateTimeSlot } from "@/hooks/useTimeSlot";
 import { useSportsList } from "@/hooks/useSport";
 import { useMe } from "@/hooks/useUser";
 import { useVenues } from "@/hooks/useVenue";
 import type { Court } from "@/types/court.type";
+import type { UpdateTimeSlotRequest } from "@/types/time-slot.type";
 import { OwnerCourtsDialogs } from "./dialogs";
 
 const createCourtSchema = z.object({
@@ -48,7 +50,7 @@ const createCourtSchema = z.object({
   manualPrice: z.coerce.number().optional(),
   templateStartDate: z.string().optional(),
   templateEndDate: z.string().optional(),
-  templateWeekday: z.coerce.number().optional(),
+  templateWeekdays: z.array(z.coerce.number()).optional(),
   templateStartTime: z.string().optional(),
   templateEndTime: z.string().optional(),
   templatePrice: z.coerce.number().optional(),
@@ -78,6 +80,7 @@ export default function OwnerCourtsPage() {
   const deleteMultipleCourtsMutation = useDeleteMultipleCourts();
   const deleteCourtMutation = useDeleteCourt();
   const updateCourtMutation = useUpdateCourt();
+  const updateTimeSlotMutation = useUpdateTimeSlot();
 
   const venuesQuery = useVenues({
     current: 1,
@@ -93,6 +96,11 @@ export default function OwnerCourtsPage() {
     sportId: filterSportId === "all" ? undefined : filterSportId,
   });
   const detailCourtQuery = useCourtDetail(detailCourtId ?? "", !!detailCourtId);
+  const courtTimeSlotsQuery = useTimeSlots({
+    current: 1,
+    limit: 300,
+    courtId: editingCourt?.id,
+  });
 
   const ownerVenueIds = useMemo(
     () => new Set((venuesQuery.data?.items ?? []).map((item) => item.id)),
@@ -127,17 +135,21 @@ export default function OwnerCourtsPage() {
       pricePerHour: 100000,
       imageUrl: "",
       slotMode: "none",
+      manualDate: "",
+      manualStartTime: "06:00",
+      manualEndTime: "07:00",
+      manualPrice: 100000,
+      templateStartDate: "",
+      templateEndDate: "",
+      templateWeekdays: [],
+      templateStartTime: "06:00",
+      templateEndTime: "07:00",
+      templatePrice: 100000,
+      createTemplate: true,
     },
   });
 
-  const submit = (values: CreateCourtForm) => {
-    const payload: any = {
-      venueId: values.venueId,
-      sportId: values.sportId,
-      name: values.name,
-      pricePerHour: values.pricePerHour,
-      imageUrl: values.imageUrl,
-    };
+  const buildTimeSlotConfig = (values: CreateCourtForm) => {
     if (
       values.slotMode === "manual" &&
       values.manualDate &&
@@ -145,7 +157,7 @@ export default function OwnerCourtsPage() {
       values.manualEndTime &&
       values.manualPrice !== undefined
     ) {
-      payload.timeSlotConfig = {
+      return {
         manualSlots: [
           {
             date: values.manualDate,
@@ -156,20 +168,21 @@ export default function OwnerCourtsPage() {
         ],
       };
     }
+
     if (
       values.slotMode === "template" &&
       values.templateStartDate &&
       values.templateEndDate &&
-      values.templateWeekday &&
+      values.templateWeekdays?.length &&
       values.templateStartTime &&
       values.templateEndTime &&
       values.templatePrice !== undefined
     ) {
-      payload.timeSlotConfig = {
+      return {
         templateGeneration: {
           startDate: values.templateStartDate,
           endDate: values.templateEndDate,
-          weekday: values.templateWeekday,
+          weekdays: values.templateWeekdays as any,
           startTime: values.templateStartTime,
           endTime: values.templateEndTime,
           price: values.templatePrice,
@@ -177,6 +190,20 @@ export default function OwnerCourtsPage() {
         },
       };
     }
+
+    return undefined;
+  };
+
+  const submit = (values: CreateCourtForm) => {
+    const payload: any = {
+      venueId: values.venueId,
+      sportId: values.sportId,
+      name: values.name,
+      pricePerHour: values.pricePerHour,
+      imageUrl: values.imageUrl,
+    };
+    const config = buildTimeSlotConfig(values);
+    if (config) payload.timeSlotConfig = config;
     createCourtMutation.mutate(payload, {
       onSuccess: () => {
         setIsCreateOpen(false);
@@ -194,45 +221,8 @@ export default function OwnerCourtsPage() {
       pricePerHour: values.pricePerHour,
       imageUrl: values.imageUrl,
     };
-    if (
-      values.slotMode === "manual" &&
-      values.manualDate &&
-      values.manualStartTime &&
-      values.manualEndTime &&
-      values.manualPrice !== undefined
-    ) {
-      payload.timeSlotConfig = {
-        manualSlots: [
-          {
-            date: values.manualDate,
-            startTime: values.manualStartTime,
-            endTime: values.manualEndTime,
-            price: values.manualPrice,
-          },
-        ],
-      };
-    }
-    if (
-      values.slotMode === "template" &&
-      values.templateStartDate &&
-      values.templateEndDate &&
-      values.templateWeekday &&
-      values.templateStartTime &&
-      values.templateEndTime &&
-      values.templatePrice !== undefined
-    ) {
-      payload.timeSlotConfig = {
-        templateGeneration: {
-          startDate: values.templateStartDate,
-          endDate: values.templateEndDate,
-          weekday: values.templateWeekday,
-          startTime: values.templateStartTime,
-          endTime: values.templateEndTime,
-          price: values.templatePrice,
-          createTemplate: values.createTemplate ?? true,
-        },
-      };
-    }
+    const config = buildTimeSlotConfig(values);
+    if (config) payload.timeSlotConfig = config;
     updateCourtMutation.mutate(
       {
         courtId: editingCourt.id,
@@ -245,6 +235,20 @@ export default function OwnerCourtsPage() {
         },
       },
     );
+  };
+
+  const addTimeSlotFromConfig = () => {
+    if (!editingCourt) return;
+    const config = buildTimeSlotConfig(editForm.getValues());
+    if (!config) return;
+    updateCourtMutation.mutate({
+      courtId: editingCourt.id,
+      payload: { timeSlotConfig: config },
+    });
+  };
+
+  const updateExistingTimeSlot = (id: string, payload: UpdateTimeSlotRequest) => {
+    updateTimeSlotMutation.mutate({ id, payload });
   };
 
   return (
@@ -369,6 +373,17 @@ export default function OwnerCourtsPage() {
                           pricePerHour: court.pricePerHour,
                           imageUrl: court.imageUrl ?? "",
                           slotMode: "none",
+                          manualDate: "",
+                          manualStartTime: "06:00",
+                          manualEndTime: "07:00",
+                          manualPrice: court.pricePerHour,
+                          templateStartDate: "",
+                          templateEndDate: "",
+                          templateWeekdays: [],
+                          templateStartTime: "06:00",
+                          templateEndTime: "07:00",
+                          templatePrice: court.pricePerHour,
+                          createTemplate: true,
                         });
                       }}
                     >
@@ -434,6 +449,15 @@ export default function OwnerCourtsPage() {
         detailCourtId={detailCourtId}
         setDetailCourtId={setDetailCourtId}
         detailCourtQuery={detailCourtQuery}
+        courtTimeSlots={(courtTimeSlotsQuery.data?.items ?? []).filter((slot) =>
+          ownerCourts.some((court) => court.id === slot.courtId),
+        )}
+        isTimeSlotsLoading={courtTimeSlotsQuery.isLoading}
+        onAddTimeSlotFromConfig={addTimeSlotFromConfig}
+        onUpdateTimeSlot={updateExistingTimeSlot}
+        isSavingTimeSlot={
+          updateCourtMutation.isPending || updateTimeSlotMutation.isPending
+        }
       />
     </div>
   );

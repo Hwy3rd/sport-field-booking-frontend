@@ -51,7 +51,7 @@ export interface CreateCourtRequest {
     templateGeneration?: {
       startDate: string;
       endDate: string;
-      weekday: TimeSlotWeekday;
+      weekdays: TimeSlotWeekday[];
       startTime: string;
       endTime: string;
       price: number;

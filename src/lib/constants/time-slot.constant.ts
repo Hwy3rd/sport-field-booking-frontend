@@ -24,3 +24,13 @@ export type TimeSlotWeekday =
   (typeof TIME_SLOT_WEEKDAY)[keyof typeof TIME_SLOT_WEEKDAY];
 
 export const TIME_SLOT_WEEKDAY_VALUES = Object.values(TIME_SLOT_WEEKDAY);
+
+export const TIME_SLOT_WEEKDAY_LABEL_VI: Record<TimeSlotWeekday, string> = {
+  [TIME_SLOT_WEEKDAY.MONDAY]: "Thứ 2",
+  [TIME_SLOT_WEEKDAY.TUESDAY]: "Thứ 3",
+  [TIME_SLOT_WEEKDAY.WEDNESDAY]: "Thứ 4",
+  [TIME_SLOT_WEEKDAY.THURSDAY]: "Thứ 5",
+  [TIME_SLOT_WEEKDAY.FRIDAY]: "Thứ 6",
+  [TIME_SLOT_WEEKDAY.SATURDAY]: "Thứ 7",
+  [TIME_SLOT_WEEKDAY.SUNDAY]: "Chủ nhật",
+};

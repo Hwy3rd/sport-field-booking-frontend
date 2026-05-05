@@ -1,14 +1,22 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { RefreshCcw, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { KeyRound, Pencil, RefreshCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePagination } from "@/components/shared/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,49 +38,100 @@ import {
   useUserDetail,
   useUsersList,
 } from "@/hooks/useUser";
-import { USER_ROLE_VALUES, USER_STATUS_VALUES } from "@/lib/constants/user.constant";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { UserRole, UserStatus } from "@/lib/constants/user.constant";
 import type { User } from "@/types/user.type";
-import { AdminUsersDialogs } from "./dialogs";
+import { UserDetailDialog } from "./dialogs/user-detail-dialog";
+import { UserFilterDialog } from "./dialogs/user-filter-dialog";
+import { UserFormDialog } from "./dialogs/user-form-dialog";
 
-const createUserSchema = z.object({
-  username: z.string().min(3, "Username is required"),
-  email: z.string().email("Invalid email"),
-  fullName: z.string().min(2, "Full name is required"),
-  phone: z.string().optional(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(USER_ROLE_VALUES as [UserRole, ...UserRole[]]),
-  status: z.enum(USER_STATUS_VALUES as [UserStatus, ...UserStatus[]]),
-});
+type UserFilters = {
+  role: UserRole | "all";
+  status: UserStatus | "all";
+};
 
-type CreateUserForm = z.infer<typeof createUserSchema>;
-type EditUserForm = Omit<CreateUserForm, "password">;
-type ChangePasswordForm = { newPassword: string };
+const DEFAULT_PAGE_SIZE = 10;
+const getRoleBadgeVariant = (role: string) => {
+  switch (role) {
+    case "admin":
+      return "destructive" as const;
+    case "manager":
+      return "warning" as const;
+    case "owner":
+      return "secondary" as const;
+    default:
+      return "outline" as const;
+  }
+};
+
+const getStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "active":
+      return "success" as const;
+    case "deleted":
+      return "destructive" as const;
+    default:
+      return "outline" as const;
+  }
+};
+
+const getStatusBadgeClassName = (status: string) => {
+  switch (status) {
+    case "active":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "deleted":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    default:
+      return "";
+  }
+};
+
+const getRoleBadgeClassName = (role: string) => {
+  switch (role) {
+    case "admin":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    case "manager":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "owner":
+      return "bg-violet-100 text-violet-700 border-violet-200";
+    default:
+      return "";
+  }
+};
 
 export default function AdminUsersPage() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [keyword, setKeyword] = useState("");
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState<UserRole | "all">("all");
-  const [status, setStatus] = useState<UserStatus | "all">("all");
-  const [draftRole, setDraftRole] = useState<UserRole | "all">("all");
-  const [draftStatus, setDraftStatus] = useState<UserStatus | "all">("all");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [detailUserId, setDetailUserId] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [passwordUser, setPasswordUser] = useState<User | null>(null);
-
-  const usersQuery = useUsersList({
-    current: page,
-    limit,
-    fullName: search || undefined,
-    email: search || undefined,
-    role: role === "all" ? undefined : role,
-    status: status === "all" ? undefined : status,
+  const [current, setCurrent] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [filters, setFilters] = useState<UserFilters>({
+    role: "all",
+    status: "all",
   });
+
+  const [draftRole, setDraftRole] = useState<UserRole | "all">(filters.role);
+  const [draftStatus, setDraftStatus] = useState<UserStatus | "all">(filters.status);
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [formDialogMode, setFormDialogMode] = useState<"create" | "edit" | "password" | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [activeUser, setActiveUser] = useState<User | null>(null);
+
+  const debouncedKeyword = useDebounce(keywordInput.trim(), 500);
+  const usersListFilter = useMemo(
+    () => ({
+      current,
+      limit: pageSize,
+      fullName: debouncedKeyword || undefined,
+      role: filters.role === "all" ? undefined : filters.role,
+      status: filters.status === "all" ? undefined : filters.status,
+    }),
+    [current, pageSize, debouncedKeyword, filters.role, filters.status],
+  );
+
+  const usersQuery = useUsersList(usersListFilter);
   const createUserMutation = useCreateUser();
   const updateUserMutation = useAdminUpdateUser();
   const changePasswordMutation = useAdminChangePassword();
@@ -84,40 +143,6 @@ export default function AdminUsersPage() {
     () => pageItems.length > 0 && pageItems.every((item) => selectedIds.includes(item.id)),
     [pageItems, selectedIds],
   );
-  const createForm = useForm<CreateUserForm>({
-    resolver: zodResolver(createUserSchema as any),
-    defaultValues: {
-      username: "",
-      email: "",
-      fullName: "",
-      phone: "",
-      password: "",
-      role: "user",
-      status: "active",
-    },
-  });
-  const editForm = useForm<EditUserForm>({
-    resolver: zodResolver(createUserSchema.omit({ password: true }) as any),
-    defaultValues: {
-      username: "",
-      email: "",
-      fullName: "",
-      phone: "",
-      role: "user",
-      status: "active",
-    },
-  });
-  const passwordForm = useForm<ChangePasswordForm>({
-    resolver: zodResolver(
-      z.object({
-        newPassword: z.string().min(6, "Password must be at least 6 characters"),
-      }) as any,
-    ),
-    defaultValues: {
-      newPassword: "",
-    },
-  });
-
   const toggleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(pageItems.map((item) => item.id));
@@ -126,96 +151,152 @@ export default function AdminUsersPage() {
     setSelectedIds([]);
   };
 
-  const onCreateUser = (values: CreateUserForm) => {
-    createUserMutation.mutate(values, {
-      onSuccess: () => {
-        setIsCreateOpen(false);
-        createForm.reset();
-        usersQuery.refetch();
-      },
-    });
+  const openCreateUser = () => {
+    setActiveUser(null);
+    setFormDialogMode("create");
   };
-  const onEditUser = (values: EditUserForm) => {
-    if (!editingUser) return;
-    updateUserMutation.mutate(
-      {
-        id: editingUser.id,
+
+  const openEditUser = (user: User) => {
+    setActiveUser(user);
+    setFormDialogMode("edit");
+  };
+
+  const openChangePassword = (user: User) => {
+    setActiveUser(user);
+    setFormDialogMode("password");
+  };
+
+  const onCreateUser = async (values: {
+    username: string;
+    email: string;
+    fullName: string;
+    phone?: string;
+    password: string;
+    role: UserRole;
+    status: UserStatus;
+  }) => {
+    try {
+      await createUserMutation.mutateAsync(values);
+      setFormDialogMode(null);
+      usersQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+  const onEditUser = async (values: {
+    username: string;
+    email: string;
+    fullName: string;
+    phone?: string;
+    role: UserRole;
+    status: UserStatus;
+  }) => {
+    if (!activeUser) return;
+    try {
+      await updateUserMutation.mutateAsync({
+        id: activeUser.id,
         ...values,
-      },
-      {
-        onSuccess: () => {
-          setEditingUser(null);
-          editForm.reset();
-          usersQuery.refetch();
-        },
-      },
-    );
+      });
+      setActiveUser(null);
+      setFormDialogMode(null);
+      usersQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
   };
-  const onChangePassword = (values: ChangePasswordForm) => {
-    if (!passwordUser) return;
-    changePasswordMutation.mutate(
-      {
-        userId: passwordUser.id,
+  const onChangePassword = async (values: { newPassword: string }) => {
+    if (!activeUser) return;
+    try {
+      await changePasswordMutation.mutateAsync({
+        userId: activeUser.id,
         payload: { newPassword: values.newPassword },
-      },
-      {
-        onSuccess: () => {
-          setPasswordUser(null);
-          passwordForm.reset();
-        },
-      },
-    );
+      });
+      setActiveUser(null);
+      setFormDialogMode(null);
+    } catch {
+      // mutation hook already handles user feedback
+    }
   };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return;
+
+    try {
+      await deleteUserMutation.mutateAsync(deleteUserId);
+      setSelectedIds((prev) => prev.filter((id) => id !== deleteUserId));
+      setDeleteUserId(null);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteSelectedUsers = async () => {
+    if (!selectedIds.length) return;
+
+    try {
+      await deleteMultipleUsersMutation.mutateAsync(selectedIds);
+      setSelectedIds([]);
+      setDeleteSelectedOpen(false);
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleApplyFilter = (nextRole: UserRole | "all", nextStatus: UserStatus | "all") => {
+    setCurrent(1);
+    setFilters((prev) => ({
+      ...prev,
+      role: nextRole,
+      status: nextStatus,
+    }));
+  };
+
+  useEffect(() => {
+    setCurrent(1);
+  }, [debouncedKeyword]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [current, pageSize, filters.role, filters.status, debouncedKeyword]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Manage users" description="View and remove user accounts" />
 
-      <div className="surface-card flex flex-wrap items-center gap-2 p-4">
-        <Input
-          placeholder="Search by full name or email"
-          value={keyword}
-          onChange={(event) => {
-            setKeyword(event.target.value);
-          }}
-          className="w-full md:max-w-sm"
-        />
-        <Button
-          onClick={() => {
-            setPage(1);
-            setSearch(keyword.trim());
-          }}
-        >
-          Search
-        </Button>
-        <Button variant="outline" onClick={() => usersQuery.refetch()}>
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => {
-            setDraftRole(role);
-            setDraftStatus(status);
-            setIsFilterOpen(true);
-          }}
-        >
-          <SlidersHorizontal className="mr-2 h-4 w-4" />
-          Filter
-        </Button>
-        <Button onClick={() => setIsCreateOpen(true)}>Create new</Button>
-        {selectedIds.length > 0 ? (
+      <div className="surface-card flex flex-wrap items-center justify-between gap-2 p-4">
+        <div className="flex w-full items-center justify-center gap-2 md:max-w-sm">
+          <Input
+            placeholder="Search by full name"
+            value={keywordInput}
+            onChange={(event) => {
+              setKeywordInput(event.target.value);
+            }}
+            className="w-full md:max-w-sm"
+          />
+        </div>
+        <div className="flex items-center justify-center gap-2">
+          <Button variant="outline" onClick={() => usersQuery.refetch()}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
           <Button
-            variant="destructive"
+            variant="outline"
             onClick={() => {
-              deleteMultipleUsersMutation.mutate(selectedIds, {
-                onSuccess: () => setSelectedIds([]),
-              });
+              setDraftRole(filters.role);
+              setDraftStatus(filters.status);
+              setIsFilterOpen(true);
             }}
           >
-            Delete selected ({selectedIds.length})
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Filter
           </Button>
-        ) : null}
+          <Button onClick={openCreateUser}>Create new</Button>
+          {selectedIds.length > 0 ? (
+            <Button variant="destructive" onClick={() => setDeleteSelectedOpen(true)}>
+              Delete selected ({selectedIds.length})
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {usersQuery.isLoading ? (
@@ -263,49 +344,55 @@ export default function AdminUsersPage() {
                   </TableCell>
                   <TableCell>{user.fullName}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell className="capitalize">{user.role}</TableCell>
-                  <TableCell className="capitalize">{user.status}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={getRoleBadgeVariant(user.role)}
+                      className={`capitalize ${getRoleBadgeClassName(user.role)}`}
+                    >
+                      {user.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={getStatusBadgeVariant(user.status)}
+                      className={`capitalize ${getStatusBadgeClassName(user.status)}`}
+                    >
+                      {user.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setEditingUser(user);
-                        editForm.reset({
-                          username: user.username,
-                          email: user.email,
-                          fullName: user.fullName,
-                          phone: user.phone ?? "",
-                          role: user.role,
-                          status: user.status,
-                        });
+                        openEditUser(user);
                       }}
                     >
-                      Edit
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setPasswordUser(user);
-                        passwordForm.reset({ newPassword: "" });
+                        openChangePassword(user);
                       }}
                     >
-                      Change password
+                      <KeyRound className="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteUserMutation.mutate(user.id);
+                        setDeleteUserId(user.id);
                       }}
                     >
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -317,50 +404,101 @@ export default function AdminUsersPage() {
 
       <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
         <TablePagination
-          currentPage={usersQuery.data?.current ?? page}
+          currentPage={usersQuery.data?.current ?? current}
           total={usersQuery.data?.total ?? 0}
-          pageSize={limit}
+          pageSize={pageSize}
           onChangePage={(value) => {
             setSelectedIds([]);
-            setPage(value);
+            setCurrent(value);
           }}
           onChangePageSize={(value) => {
-            setPage(1);
+            setCurrent(1);
             setSelectedIds([]);
-            setLimit(value);
+            setPageSize(value);
           }}
         />
       </Card>
 
-      <AdminUsersDialogs
+      <UserFilterDialog
         isFilterOpen={isFilterOpen}
         setIsFilterOpen={setIsFilterOpen}
         draftRole={draftRole}
-        setDraftRole={setDraftRole}
         draftStatus={draftStatus}
-        setDraftStatus={setDraftStatus}
-        setPage={setPage}
-        setRole={setRole}
-        setStatus={setStatus}
-        isCreateOpen={isCreateOpen}
-        setIsCreateOpen={setIsCreateOpen}
-        createForm={createForm}
+        onDraftRoleChange={setDraftRole}
+        onDraftStatusChange={setDraftStatus}
+        onApply={handleApplyFilter}
+      />
+      <UserFormDialog
+        mode={formDialogMode}
+        user={activeUser}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFormDialogMode(null);
+            setActiveUser(null);
+          }
+        }}
         onCreateUser={onCreateUser}
-        createUserMutation={createUserMutation as any}
-        editingUser={editingUser}
-        setEditingUser={setEditingUser}
-        editForm={editForm}
         onEditUser={onEditUser}
-        updateUserMutation={updateUserMutation as any}
-        passwordUser={passwordUser}
-        setPasswordUser={setPasswordUser}
-        passwordForm={passwordForm}
         onChangePassword={onChangePassword}
-        changePasswordMutation={changePasswordMutation as any}
+        isCreating={createUserMutation.isPending}
+        isUpdating={updateUserMutation.isPending}
+        isChangingPassword={changePasswordMutation.isPending}
+      />
+      <UserDetailDialog
         detailUserId={detailUserId}
         setDetailUserId={setDetailUserId}
         userDetailQuery={userDetailQuery}
       />
+
+      <AlertDialog
+        open={!!deleteUserId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteUserId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The selected user account will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteSelectedOpen}
+        onOpenChange={(open) => {
+          if (!open) setDeleteSelectedOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected users?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete {selectedIds.length} selected user(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedUsers}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

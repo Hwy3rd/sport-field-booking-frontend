@@ -35,7 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useCourts } from "@/hooks/useCourt";
 import {
   useCreateTimeSlotTemplate,
@@ -43,30 +50,25 @@ import {
   useTimeSlotTemplates,
   useUpdateTimeSlotTemplate,
 } from "@/hooks/useTimeSlot";
-import { TIME_SLOT_WEEKDAY_VALUES } from "@/lib/constants/time-slot.constant";
+import {
+  TIME_SLOT_WEEKDAY_LABEL_VI,
+  TIME_SLOT_WEEKDAY_VALUES,
+} from "@/lib/constants/time-slot.constant";
 import type { TimeSlotWeekday } from "@/lib/constants/time-slot.constant";
 
 const schema = z.object({
   courtId: z.string().min(1, "Court is required"),
-  weekday: z.coerce.number().refine((value) => TIME_SLOT_WEEKDAY_VALUES.includes(value as TimeSlotWeekday), {
-    message: "Weekday is required",
-  }),
+  weekday: z.coerce
+    .number()
+    .refine((value) => TIME_SLOT_WEEKDAY_VALUES.includes(value as TimeSlotWeekday), {
+      message: "Weekday is required",
+    }),
   startTime: z.string().min(4, "Start time is required"),
   endTime: z.string().min(4, "End time is required"),
   price: z.coerce.number().min(0, "Price must be >= 0"),
   isActive: z.enum(["true", "false"]),
 });
 type FormValue = z.infer<typeof schema>;
-
-const WEEKDAY_LABEL: Record<number, string> = {
-  1: "Monday",
-  2: "Tuesday",
-  3: "Wednesday",
-  4: "Thursday",
-  5: "Friday",
-  6: "Saturday",
-  7: "Sunday",
-};
 
 export default function AdminTimeSlotTemplatesPage() {
   const [page, setPage] = useState(1);
@@ -163,7 +165,9 @@ export default function AdminTimeSlotTemplatesPage() {
               {rows.map((template) => (
                 <TableRow key={template.id}>
                   <TableCell>{template.courtId.slice(0, 8)}</TableCell>
-                  <TableCell>{WEEKDAY_LABEL[template.weekday] ?? template.weekday}</TableCell>
+                  <TableCell>
+                    {TIME_SLOT_WEEKDAY_LABEL_VI[template.weekday] ?? template.weekday}
+                  </TableCell>
                   <TableCell>
                     {template.startTime} - {template.endTime}
                   </TableCell>
@@ -255,7 +259,10 @@ export default function AdminTimeSlotTemplatesPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Weekday</FormLabel>
-                    <Select value={String(field.value)} onValueChange={(value) => field.onChange(Number(value))}>
+                    <Select
+                      value={String(field.value)}
+                      onValueChange={(value) => field.onChange(Number(value))}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select weekday" />
@@ -264,7 +271,7 @@ export default function AdminTimeSlotTemplatesPage() {
                       <SelectContent>
                         {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => (
                           <SelectItem key={weekday} value={String(weekday)}>
-                            {WEEKDAY_LABEL[weekday]}
+                            {TIME_SLOT_WEEKDAY_LABEL_VI[weekday]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -334,7 +341,10 @@ export default function AdminTimeSlotTemplatesPage() {
                 )}
               />
               <DialogFooter className="md:col-span-2">
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
                   {createMutation.isPending || updateMutation.isPending
                     ? "Saving..."
                     : editingId

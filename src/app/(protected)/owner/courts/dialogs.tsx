@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 
 import { EmptyState } from "@/components/shared/empty-state";
@@ -29,8 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TIME_SLOT_WEEKDAY_VALUES } from "@/lib/constants/time-slot.constant";
+import {
+  TIME_SLOT_WEEKDAY_LABEL_VI,
+  TIME_SLOT_WEEKDAY_VALUES,
+} from "@/lib/constants/time-slot.constant";
 import type { Court } from "@/types/court.type";
+import type { UpdateTimeSlotRequest } from "@/types/time-slot.type";
 
 type CreateCourtForm = {
   venueId: string;
@@ -45,7 +50,7 @@ type CreateCourtForm = {
   manualPrice?: number;
   templateStartDate?: string;
   templateEndDate?: string;
-  templateWeekday?: number;
+  templateWeekdays?: number[];
   templateStartTime?: string;
   templateEndTime?: string;
   templatePrice?: number;
@@ -67,6 +72,14 @@ interface CourtDetailData {
   imageUrl?: string | null;
   venue?: { name?: string } | null;
   sport?: { name?: string } | null;
+}
+interface CourtTimeSlotItem {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: number;
+  status: string;
 }
 
 interface OwnerCourtsDialogsProps {
@@ -97,6 +110,14 @@ interface OwnerCourtsDialogsProps {
     isLoading: boolean;
     data?: CourtDetailData | null;
   };
+  courtTimeSlots: CourtTimeSlotItem[];
+  isTimeSlotsLoading: boolean;
+  onAddTimeSlotFromConfig: () => void;
+  onUpdateTimeSlot: (
+    id: string,
+    payload: UpdateTimeSlotRequest,
+  ) => void;
+  isSavingTimeSlot: boolean;
 }
 
 export function OwnerCourtsDialogs(props: OwnerCourtsDialogsProps) {
@@ -125,7 +146,17 @@ export function OwnerCourtsDialogs(props: OwnerCourtsDialogsProps) {
     detailCourtId,
     setDetailCourtId,
     detailCourtQuery,
+    courtTimeSlots,
+    isTimeSlotsLoading,
+    onAddTimeSlotFromConfig,
+    onUpdateTimeSlot,
+    isSavingTimeSlot,
   } = props;
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
+  const [slotDate, setSlotDate] = useState("");
+  const [slotStartTime, setSlotStartTime] = useState("06:00");
+  const [slotEndTime, setSlotEndTime] = useState("07:00");
+  const [slotPrice, setSlotPrice] = useState(100000);
 
   return (
     <>
@@ -304,18 +335,33 @@ export function OwnerCourtsDialogs(props: OwnerCourtsDialogsProps) {
                   )} />
                   <FormField
                     control={form.control}
-                    name="templateWeekday"
+                    name="templateWeekdays"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Weekday</FormLabel>
-                        <Select value={field.value ? String(field.value) : ""} onValueChange={(value) => field.onChange(Number(value))}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select weekday" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => (
-                              <SelectItem key={weekday} value={String(weekday)}>{weekday}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Weekdays</FormLabel>
+                        <div className="grid grid-cols-2 gap-2">
+                          {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => {
+                            const selected = (field.value ?? []).includes(weekday);
+                            return (
+                              <Button
+                                key={weekday}
+                                type="button"
+                                variant={selected ? "default" : "outline"}
+                                className="justify-start"
+                                onClick={() => {
+                                  const current = field.value ?? [];
+                                  if (selected) {
+                                    field.onChange(current.filter((item) => item !== weekday));
+                                  } else {
+                                    field.onChange([...current, weekday]);
+                                  }
+                                }}
+                              >
+                                {TIME_SLOT_WEEKDAY_LABEL_VI[weekday]}
+                              </Button>
+                            );
+                          })}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -427,18 +473,33 @@ export function OwnerCourtsDialogs(props: OwnerCourtsDialogsProps) {
                   )} />
                   <FormField
                     control={editForm.control}
-                    name="templateWeekday"
+                    name="templateWeekdays"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Weekday</FormLabel>
-                        <Select value={field.value ? String(field.value) : ""} onValueChange={(value) => field.onChange(Number(value))}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select weekday" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => (
-                              <SelectItem key={weekday} value={String(weekday)}>{weekday}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Weekdays</FormLabel>
+                        <div className="grid grid-cols-2 gap-2">
+                          {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => {
+                            const selected = (field.value ?? []).includes(weekday);
+                            return (
+                              <Button
+                                key={weekday}
+                                type="button"
+                                variant={selected ? "default" : "outline"}
+                                className="justify-start"
+                                onClick={() => {
+                                  const current = field.value ?? [];
+                                  if (selected) {
+                                    field.onChange(current.filter((item) => item !== weekday));
+                                  } else {
+                                    field.onChange([...current, weekday]);
+                                  }
+                                }}
+                              >
+                                {TIME_SLOT_WEEKDAY_LABEL_VI[weekday]}
+                              </Button>
+                            );
+                          })}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -453,6 +514,103 @@ export function OwnerCourtsDialogs(props: OwnerCourtsDialogsProps) {
                     <FormItem><FormLabel>End time</FormLabel><FormControl><Input type="time" step={60} {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </>
+              ) : null}
+              <div className="md:col-span-2 space-y-2 rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Time slots hiện có</div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={onAddTimeSlotFromConfig}
+                    disabled={isSavingTimeSlot}
+                  >
+                    {isSavingTimeSlot ? "Đang thêm..." : "Thêm time slot"}
+                  </Button>
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {isTimeSlotsLoading ? (
+                    <div className="text-sm text-muted-foreground">Đang tải time slot...</div>
+                  ) : courtTimeSlots.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Chưa có time slot nào cho court này.</div>
+                  ) : (
+                    courtTimeSlots.map((slot) => (
+                      <div key={slot.id} className="rounded-md border p-2 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div className="font-medium">
+                              {slot.date} {slot.startTime} - {slot.endTime}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {slot.price.toLocaleString()} VND - {slot.status}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingSlotId(slot.id);
+                              setSlotDate(slot.date);
+                              setSlotStartTime(slot.startTime);
+                              setSlotEndTime(slot.endTime);
+                              setSlotPrice(slot.price);
+                            }}
+                          >
+                            Edit slot
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              {editingSlotId ? (
+                <div className="md:col-span-2 grid gap-2 rounded-lg border border-dashed p-3">
+                  <div className="text-sm font-medium">Chỉnh sửa time slot</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={slotPrice}
+                      onChange={(e) => setSlotPrice(Number(e.target.value))}
+                    />
+                    <Input
+                      type="time"
+                      step={60}
+                      value={slotStartTime}
+                      onChange={(e) => setSlotStartTime(e.target.value)}
+                    />
+                    <Input
+                      type="time"
+                      step={60}
+                      value={slotEndTime}
+                      onChange={(e) => setSlotEndTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        onUpdateTimeSlot(editingSlotId, {
+                          courtId: editingCourt?.id ?? "",
+                          date: slotDate,
+                          startTime: slotStartTime,
+                          endTime: slotEndTime,
+                          price: slotPrice,
+                        });
+                        setEditingSlotId(null);
+                      }}
+                      disabled={isSavingTimeSlot}
+                    >
+                      Lưu slot
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEditingSlotId(null)}>
+                      Hủy
+                    </Button>
+                  </div>
+                </div>
               ) : null}
               <DialogFooter className="md:col-span-2">
                 <Button type="submit" disabled={updateCourtMutation.isPending}>

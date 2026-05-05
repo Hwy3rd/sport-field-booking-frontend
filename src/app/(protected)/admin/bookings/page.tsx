@@ -3,14 +3,21 @@
 import dayjs from "dayjs";
 import { RefreshCcw, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePagination } from "@/components/shared/table-pagination";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,13 +36,37 @@ import {
   useDeleteMultipleBookings,
 } from "@/hooks/useBooking";
 import type { BookingStatus } from "@/lib/constants/booking.constant";
-import { AdminBookingsDialogs } from "./dialogs";
+import { BookingDetailDialog } from "./dialogs/booking-detail-dialog";
+import { BookingFilterDialog } from "./dialogs/booking-filter-dialog";
+import { BookingFormDialog } from "./dialogs/booking-form-dialog";
 
-const createBookingSchema = z.object({
-  timeSlotIds: z.string().min(1, "Please provide at least 1 time slot id"),
-});
+const getBookingStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "confirmed":
+    case "completed":
+      return "success" as const;
+    case "pending":
+      return "warning" as const;
+    case "cancelled":
+      return "destructive" as const;
+    default:
+      return "outline" as const;
+  }
+};
 
-type CreateBookingForm = z.infer<typeof createBookingSchema>;
+const getBookingStatusBadgeClassName = (status: string) => {
+  switch (status) {
+    case "confirmed":
+    case "completed":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "pending":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "cancelled":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    default:
+      return "";
+  }
+};
 
 export default function AdminBookingsPage() {
   const [page, setPage] = useState(1);
@@ -45,6 +76,7 @@ export default function AdminBookingsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
   const [detailBookingId, setDetailBookingId] = useState<string | null>(null);
 
   const bookingsQuery = useAdminBookingsList({
@@ -62,28 +94,29 @@ export default function AdminBookingsPage() {
     () => pageItems.length > 0 && pageItems.every((item) => selectedIds.includes(item.id)),
     [pageItems, selectedIds],
   );
-  const createForm = useForm<CreateBookingForm>({
-    resolver: zodResolver(createBookingSchema as any),
-    defaultValues: {
-      timeSlotIds: "",
-    },
-  });
-
-  const onCreateBooking = (values: CreateBookingForm) => {
+  const onCreateBooking = async (values: { timeSlotIds: string }) => {
     const timeSlotIds = values.timeSlotIds
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
-    createBookingMutation.mutate(
-      { timeSlotIds },
-      {
-        onSuccess: () => {
-          setIsCreateOpen(false);
-          createForm.reset();
-          bookingsQuery.refetch();
-        },
-      },
-    );
+    try {
+      await createBookingMutation.mutateAsync({ timeSlotIds });
+      setIsCreateOpen(false);
+      bookingsQuery.refetch();
+    } catch {
+      // mutation hook already handles user feedback
+    }
+  };
+
+  const handleDeleteSelectedBookings = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await deleteMultipleBookingsMutation.mutateAsync(selectedIds);
+      setSelectedIds([]);
+      setDeleteSelectedOpen(false);
+    } catch {
+      // mutation hook already handles user feedback
+    }
   };
 
   return (
@@ -109,11 +142,7 @@ export default function AdminBookingsPage() {
         {selectedIds.length > 0 ? (
           <Button
             variant="destructive"
-            onClick={() => {
-              deleteMultipleBookingsMutation.mutate(selectedIds, {
-                onSuccess: () => setSelectedIds([]),
-              });
-            }}
+            onClick={() => setDeleteSelectedOpen(true)}
           >
             Delete selected ({selectedIds.length})
           </Button>
@@ -173,7 +202,12 @@ export default function AdminBookingsPage() {
                   <TableCell className="font-mono text-xs">{booking.userId.slice(0, 8)}</TableCell>
                   <TableCell>{dayjs(booking.createdAt).format("DD/MM/YYYY HH:mm")}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{booking.status}</Badge>
+                    <Badge
+                      variant={getBookingStatusBadgeVariant(booking.status)}
+                      className={getBookingStatusBadgeClassName(booking.status)}
+                    >
+                      {booking.status}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     {booking.totalPrice.toLocaleString()} VND
@@ -202,22 +236,47 @@ export default function AdminBookingsPage() {
         />
       </Card>
 
-      <AdminBookingsDialogs
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
+      <BookingFilterDialog
+        open={isFilterOpen}
+        onOpenChange={setIsFilterOpen}
         draftStatus={draftStatus}
-        setDraftStatus={setDraftStatus}
-        setPage={setPage}
-        setStatus={setStatus}
-        isCreateOpen={isCreateOpen}
-        setIsCreateOpen={setIsCreateOpen}
-        createForm={createForm}
+        onDraftStatusChange={setDraftStatus}
+        onApply={(nextStatus) => {
+          setPage(1);
+          setStatus(nextStatus);
+        }}
+      />
+      <BookingFormDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
         onCreateBooking={onCreateBooking}
-        createBookingMutation={createBookingMutation}
+        isCreating={createBookingMutation.isPending}
+      />
+      <BookingDetailDialog
         detailBookingId={detailBookingId}
         setDetailBookingId={setDetailBookingId}
         bookingDetailQuery={bookingDetailQuery}
       />
+
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={setDeleteSelectedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected bookings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete {selectedIds.length} selected booking(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedBookings}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

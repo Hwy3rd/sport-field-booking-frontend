@@ -1,90 +1,97 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { RefreshCcw, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { Pencil, RefreshCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePagination } from "@/components/shared/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  useCourtDetail,
-  useCourts,
-  useCreateCourt,
-  useDeleteCourt,
-  useDeleteMultipleCourts,
-  useUpdateCourt,
-} from "@/hooks/useCourt";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useCourtDetail, useCourts, useCreateCourt, useDeleteCourt, useDeleteMultipleCourts, useUpdateCourt } from "@/hooks/useCourt";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useSportsList } from "@/hooks/useSport";
+import { useTimeSlots, useUpdateTimeSlot } from "@/hooks/useTimeSlot";
 import { useVenues } from "@/hooks/useVenue";
 import type { Court } from "@/types/court.type";
-import { AdminCourtsDialogs } from "./dialogs";
+import type { UpdateTimeSlotRequest } from "@/types/time-slot.type";
+import { CourtDetailDialog } from "@/app/(protected)/admin/courts/dialogs/court-detail-dialog";
+import { CourtFilterDialog } from "@/app/(protected)/admin/courts/dialogs/court-filter-dialog";
+import { CourtFormDialog, type CourtFormValue } from "@/app/(protected)/admin/courts/dialogs/court-form-dialog";
 
-const createCourtSchema = z.object({
-  venueId: z.string().min(1, "Venue is required"),
-  sportId: z.string().min(1, "Sport is required"),
-  name: z.string().min(2, "Court name is required"),
-  pricePerHour: z.coerce.number().min(0, "Price must be non-negative"),
-  imageUrl: z.string().optional(),
-  slotMode: z.enum(["none", "manual", "template"]).optional(),
-  manualDate: z.string().optional(),
-  manualStartTime: z.string().optional(),
-  manualEndTime: z.string().optional(),
-  manualPrice: z.coerce.number().optional(),
-  templateStartDate: z.string().optional(),
-  templateEndDate: z.string().optional(),
-  templateWeekday: z.coerce.number().optional(),
-  templateStartTime: z.string().optional(),
-  templateEndTime: z.string().optional(),
-  templatePrice: z.coerce.number().optional(),
-  createTemplate: z.boolean().optional(),
-});
+const getCourtStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "active":
+      return "success" as const;
+    case "maintenance":
+      return "warning" as const;
+    case "deleted":
+      return "destructive" as const;
+    default:
+      return "outline" as const;
+  }
+};
 
-type CreateCourtForm = z.infer<typeof createCourtSchema>;
+const getCourtStatusBadgeClassName = (status: string) => {
+  switch (status) {
+    case "active":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "maintenance":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "deleted":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    default:
+      return "";
+  }
+};
 
 export default function AdminCourtsPage() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [current, setCurrent] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState("");
-  const [search, setSearch] = useState("");
   const [filterVenueId, setFilterVenueId] = useState<string>("all");
   const [filterSportId, setFilterSportId] = useState<string>("all");
   const [draftFilterVenueId, setDraftFilterVenueId] = useState<string>("all");
   const [draftFilterSportId, setDraftFilterSportId] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [editingCourt, setEditingCourt] = useState<Court | null>(null);
   const [detailCourtId, setDetailCourtId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteCourtId, setDeleteCourtId] = useState<string | null>(null);
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
 
+  const debouncedKeyword = useDebounce(keyword.trim(), 500);
   const createCourtMutation = useCreateCourt();
   const deleteMultipleCourtsMutation = useDeleteMultipleCourts();
   const deleteCourtMutation = useDeleteCourt();
   const updateCourtMutation = useUpdateCourt();
+  const updateTimeSlotMutation = useUpdateTimeSlot();
   const venuesQuery = useVenues({ current: 1, limit: 100, filter: {} });
   const sportsQuery = useSportsList({ current: 1, limit: 100 });
   const courtsQuery = useCourts({
-    current: page,
-    limit,
-    name: search || undefined,
+    current,
+    limit: pageSize,
+    name: debouncedKeyword || undefined,
     venueId: filterVenueId === "all" ? undefined : filterVenueId,
     sportId: filterSportId === "all" ? undefined : filterSportId,
   });
   const detailCourtQuery = useCourtDetail(detailCourtId ?? "", !!detailCourtId);
+  const courtTimeSlotsQuery = useTimeSlots({ current: 1, limit: 300, courtId: editingCourt?.id });
 
   const courts = courtsQuery.data?.items ?? [];
   const isAllSelected = useMemo(
@@ -92,69 +99,26 @@ export default function AdminCourtsPage() {
     [courts, selectedIds],
   );
 
-  const form = useForm<CreateCourtForm>({
-    resolver: zodResolver(createCourtSchema as any),
-    defaultValues: {
-      venueId: "",
-      sportId: "",
-      name: "",
-      pricePerHour: 100000,
-      imageUrl: "",
-      slotMode: "none",
-    },
-  });
-  const editForm = useForm<CreateCourtForm>({
-    resolver: zodResolver(createCourtSchema as any),
-    defaultValues: {
-      venueId: "",
-      sportId: "",
-      name: "",
-      pricePerHour: 100000,
-      imageUrl: "",
-      slotMode: "none",
-    },
-  });
-
-  const submit = (values: CreateCourtForm) => {
-    const payload: any = {
-      venueId: values.venueId,
-      sportId: values.sportId,
-      name: values.name,
-      pricePerHour: values.pricePerHour,
-      imageUrl: values.imageUrl,
-    };
-    if (
-      values.slotMode === "manual" &&
-      values.manualDate &&
-      values.manualStartTime &&
-      values.manualEndTime &&
-      values.manualPrice !== undefined
-    ) {
-      payload.timeSlotConfig = {
-        manualSlots: [
-          {
-            date: values.manualDate,
-            startTime: values.manualStartTime,
-            endTime: values.manualEndTime,
-            price: values.manualPrice,
-          },
-        ],
+  const buildTimeSlotConfig = (values: CourtFormValue) => {
+    if (values.slotMode === "manual" && values.manualDate && values.manualStartTime && values.manualEndTime && values.manualPrice !== undefined) {
+      return {
+        manualSlots: [{ date: values.manualDate, startTime: values.manualStartTime, endTime: values.manualEndTime, price: values.manualPrice }],
       };
     }
     if (
       values.slotMode === "template" &&
       values.templateStartDate &&
       values.templateEndDate &&
-      values.templateWeekday &&
+      values.templateWeekdays?.length &&
       values.templateStartTime &&
       values.templateEndTime &&
       values.templatePrice !== undefined
     ) {
-      payload.timeSlotConfig = {
+      return {
         templateGeneration: {
           startDate: values.templateStartDate,
           endDate: values.templateEndDate,
-          weekday: values.templateWeekday,
+          weekdays: values.templateWeekdays as any,
           startTime: values.templateStartTime,
           endTime: values.templateEndTime,
           price: values.templatePrice,
@@ -162,95 +126,76 @@ export default function AdminCourtsPage() {
         },
       };
     }
-    createCourtMutation.mutate(payload, {
-      onSuccess: () => {
-        setIsCreateOpen(false);
-        form.reset();
-      },
-    });
+    return undefined;
   };
 
-  const submitEdit = (values: CreateCourtForm) => {
+  const handleCreateCourt = async (values: CourtFormValue) => {
+    const payload: any = { venueId: values.venueId, sportId: values.sportId, name: values.name, pricePerHour: values.pricePerHour, imageUrl: values.imageUrl };
+    const config = buildTimeSlotConfig(values);
+    if (config) payload.timeSlotConfig = config;
+    try {
+      await createCourtMutation.mutateAsync(payload);
+      setFormMode(null);
+      courtsQuery.refetch();
+    } catch {}
+  };
+
+  const handleEditCourt = async (values: CourtFormValue) => {
     if (!editingCourt) return;
-    const payload: any = {
-      venueId: values.venueId,
-      sportId: values.sportId,
-      name: values.name,
-      pricePerHour: values.pricePerHour,
-      imageUrl: values.imageUrl,
-    };
-    if (
-      values.slotMode === "manual" &&
-      values.manualDate &&
-      values.manualStartTime &&
-      values.manualEndTime &&
-      values.manualPrice !== undefined
-    ) {
-      payload.timeSlotConfig = {
-        manualSlots: [
-          {
-            date: values.manualDate,
-            startTime: values.manualStartTime,
-            endTime: values.manualEndTime,
-            price: values.manualPrice,
-          },
-        ],
-      };
-    }
-    if (
-      values.slotMode === "template" &&
-      values.templateStartDate &&
-      values.templateEndDate &&
-      values.templateWeekday &&
-      values.templateStartTime &&
-      values.templateEndTime &&
-      values.templatePrice !== undefined
-    ) {
-      payload.timeSlotConfig = {
-        templateGeneration: {
-          startDate: values.templateStartDate,
-          endDate: values.templateEndDate,
-          weekday: values.templateWeekday,
-          startTime: values.templateStartTime,
-          endTime: values.templateEndTime,
-          price: values.templatePrice,
-          createTemplate: values.createTemplate ?? true,
-        },
-      };
-    }
-    updateCourtMutation.mutate(
-      {
-        courtId: editingCourt.id,
-        payload,
-      },
-      {
-        onSuccess: () => {
-          setEditingCourt(null);
-          editForm.reset();
-        },
-      },
-    );
+    const payload: any = { venueId: values.venueId, sportId: values.sportId, name: values.name, pricePerHour: values.pricePerHour, imageUrl: values.imageUrl };
+    const config = buildTimeSlotConfig(values);
+    if (config) payload.timeSlotConfig = config;
+    try {
+      await updateCourtMutation.mutateAsync({ courtId: editingCourt.id, payload });
+      setEditingCourt(null);
+      setFormMode(null);
+      courtsQuery.refetch();
+    } catch {}
   };
+
+  const handleAddTimeSlotFromConfig = (values: CourtFormValue) => {
+    if (!editingCourt) return;
+    const config = buildTimeSlotConfig(values);
+    if (!config) return;
+    updateCourtMutation.mutate({ courtId: editingCourt.id, payload: { timeSlotConfig: config } });
+  };
+
+  const updateExistingTimeSlot = (id: string, payload: UpdateTimeSlotRequest) => {
+    updateTimeSlotMutation.mutate({ id, payload });
+  };
+
+  const handleDeleteCourt = async () => {
+    if (!deleteCourtId) return;
+    try {
+      await deleteCourtMutation.mutateAsync(deleteCourtId);
+      setSelectedIds((prev) => prev.filter((id) => id !== deleteCourtId));
+      setDeleteCourtId(null);
+    } catch {}
+  };
+
+  const handleDeleteSelectedCourts = async () => {
+    if (!selectedIds.length) return;
+    try {
+      await deleteMultipleCourtsMutation.mutateAsync(selectedIds);
+      setSelectedIds([]);
+      setDeleteSelectedOpen(false);
+    } catch {}
+  };
+
+  useEffect(() => {
+    setCurrent(1);
+  }, [debouncedKeyword]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [current, pageSize, filterVenueId, filterSportId, debouncedKeyword]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Manage courts" description="Browse all courts in the system" />
 
       <div className="surface-card flex flex-wrap items-center gap-2 p-4">
-        <Input
-          placeholder="Search by court name"
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          className="w-full md:max-w-sm"
-        />
-        <Button
-          onClick={() => {
-            setPage(1);
-            setSearch(keyword.trim());
-          }}
-        >
-          Search
-        </Button>
+        <Input placeholder="Search by court name" value={keyword} onChange={(event) => setKeyword(event.target.value)} className="w-full md:max-w-sm" />
         <Button variant="outline" onClick={() => courtsQuery.refetch()}>
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
@@ -266,16 +211,16 @@ export default function AdminCourtsPage() {
           <SlidersHorizontal className="mr-2 h-4 w-4" />
           Filter
         </Button>
-        <Button onClick={() => setIsCreateOpen(true)}>Create new</Button>
+        <Button
+          onClick={() => {
+            setEditingCourt(null);
+            setFormMode("create");
+          }}
+        >
+          Create new
+        </Button>
         {selectedIds.length > 0 ? (
-          <Button
-            variant="destructive"
-            onClick={() => {
-              deleteMultipleCourtsMutation.mutate(selectedIds, {
-                onSuccess: () => setSelectedIds([]),
-              });
-            }}
-          >
+          <Button variant="destructive" onClick={() => setDeleteSelectedOpen(true)}>
             Delete selected ({selectedIds.length})
           </Button>
         ) : null}
@@ -313,11 +258,7 @@ export default function AdminCourtsPage() {
             </TableHeader>
             <TableBody>
               {courts.map((court) => (
-                <TableRow
-                  key={court.id}
-                  className="cursor-pointer"
-                  onClick={() => setDetailCourtId(court.id)}
-                >
+                <TableRow key={court.id} className="cursor-pointer" onClick={() => setDetailCourtId(court.id)}>
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -335,36 +276,37 @@ export default function AdminCourtsPage() {
                   <TableCell>{court.venue?.name ?? court.venueId.slice(0, 8)}</TableCell>
                   <TableCell>{court.sport?.name ?? court.sportId.slice(0, 8)}</TableCell>
                   <TableCell>{court.pricePerHour.toLocaleString()} VND</TableCell>
-                  <TableCell>{court.status}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={getCourtStatusBadgeVariant(court.status)}
+                      className={`capitalize ${getCourtStatusBadgeClassName(court.status)}`}
+                    >
+                      {court.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       onClick={(event) => {
                         event.stopPropagation();
                         setEditingCourt(court);
-                        editForm.reset({
-                          venueId: court.venueId,
-                          sportId: court.sportId,
-                          name: court.name,
-                          pricePerHour: court.pricePerHour,
-                          imageUrl: court.imageUrl ?? "",
-                          slotMode: "none",
-                        });
+                        setFormMode("edit");
                       }}
                     >
-                      Edit
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteCourtMutation.mutate(court.id);
+                        setDeleteCourtId(court.id);
                       }}
                     >
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -376,47 +318,95 @@ export default function AdminCourtsPage() {
 
       <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
         <TablePagination
-          currentPage={courtsQuery.data?.current ?? page}
+          currentPage={courtsQuery.data?.current ?? current}
           total={courtsQuery.data?.total ?? 0}
-          pageSize={limit}
+          pageSize={pageSize}
           onChangePage={(value) => {
             setSelectedIds([]);
-            setPage(value);
+            setCurrent(value);
           }}
           onChangePageSize={(value) => {
-            setPage(1);
+            setCurrent(1);
             setSelectedIds([]);
-            setLimit(value);
+            setPageSize(value);
           }}
         />
       </Card>
 
-      <AdminCourtsDialogs
-        isFilterOpen={isFilterOpen}
-        setIsFilterOpen={setIsFilterOpen}
+      <CourtFilterDialog
+        open={isFilterOpen}
+        onOpenChange={setIsFilterOpen}
         draftFilterVenueId={draftFilterVenueId}
-        setDraftFilterVenueId={setDraftFilterVenueId}
         draftFilterSportId={draftFilterSportId}
-        setDraftFilterSportId={setDraftFilterSportId}
         venues={venuesQuery.data?.items ?? []}
         sports={sportsQuery.data?.items ?? []}
-        setFilterVenueId={setFilterVenueId}
-        setFilterSportId={setFilterSportId}
-        setPage={setPage}
-        isCreateOpen={isCreateOpen}
-        setIsCreateOpen={setIsCreateOpen}
-        form={form}
-        submit={submit}
-        createCourtMutation={createCourtMutation}
-        editingCourt={editingCourt}
-        setEditingCourt={setEditingCourt}
-        editForm={editForm}
-        submitEdit={submitEdit}
-        updateCourtMutation={updateCourtMutation}
-        detailCourtId={detailCourtId}
-        setDetailCourtId={setDetailCourtId}
-        detailCourtQuery={detailCourtQuery}
+        onDraftFilterVenueIdChange={setDraftFilterVenueId}
+        onDraftFilterSportIdChange={setDraftFilterSportId}
+        onApply={(venueId, sportId) => {
+          setCurrent(1);
+          setFilterVenueId(venueId);
+          setFilterSportId(sportId);
+        }}
       />
+      <CourtFormDialog
+        mode={formMode}
+        court={editingCourt}
+        venues={venuesQuery.data?.items ?? []}
+        sports={sportsQuery.data?.items ?? []}
+        courtTimeSlots={courtTimeSlotsQuery.data?.items ?? []}
+        isTimeSlotsLoading={courtTimeSlotsQuery.isLoading}
+        isSavingTimeSlot={updateCourtMutation.isPending || updateTimeSlotMutation.isPending}
+        onUpdateTimeSlot={updateExistingTimeSlot}
+        onAddTimeSlotFromConfig={handleAddTimeSlotFromConfig}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setFormMode(null);
+            setEditingCourt(null);
+          }
+        }}
+        onCreate={handleCreateCourt}
+        onEdit={handleEditCourt}
+        isCreating={createCourtMutation.isPending}
+        isUpdating={updateCourtMutation.isPending}
+      />
+      <CourtDetailDialog detailCourtId={detailCourtId} setDetailCourtId={setDetailCourtId} detailCourtQuery={detailCourtQuery} />
+
+      <AlertDialog
+        open={!!deleteCourtId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteCourtId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete court?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone. The selected court will be permanently deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCourt} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={setDeleteSelectedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected courts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete {selectedIds.length} selected court(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelectedCourts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
