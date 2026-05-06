@@ -5,17 +5,12 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/helper/get-message";
 import { CourtService } from "@/services/court.service";
+import { courtKeys } from "@/lib/query-keys/court.keys";
 import type {
   CreateCourtRequest,
   GetAllCourtsRequest,
   UpdateCourtRequest,
 } from "@/types/court.type";
-
-export const courtKeys = {
-  all: ["courts"] as const,
-  list: (filter?: GetAllCourtsRequest) => ["courts", "list", filter ?? {}] as const,
-  detail: (courtId: string) => ["courts", "detail", courtId] as const,
-};
 
 export const useCourtsList = (filter: GetAllCourtsRequest = {}) =>
   useQuery({

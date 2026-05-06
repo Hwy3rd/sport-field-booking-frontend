@@ -28,10 +28,14 @@ export const timeSlotTemplateKeys = {
   detail: (id: string) => ["time-slot-templates", "detail", id] as const,
 };
 
-export const useTimeSlots = (filter: GetAllTimeSlotsRequest = {}) =>
+export const useTimeSlots = (
+  filter: GetAllTimeSlotsRequest = {},
+  options?: { enabled?: boolean },
+) =>
   useQuery({
     queryKey: timeSlotKeys.list(filter),
     queryFn: () => TimeSlotService.getAllTimeSlots(filter),
+    enabled: options?.enabled ?? true,
   });
 
 export const useCreateTimeSlot = () => {

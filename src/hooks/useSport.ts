@@ -5,17 +5,12 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/helper/get-message";
 import { SportService } from "@/services/sport.service";
+import { sportKeys } from "@/lib/query-keys/sport.keys";
 import type {
   CreateSportRequest,
   GetAllSportsRequest,
   UpdateSportRequest,
 } from "@/types/sport.type";
-
-export const sportKeys = {
-  all: ["sports"] as const,
-  list: (filter?: GetAllSportsRequest) => ["sports", "list", filter ?? {}] as const,
-  detail: (sportId: string) => ["sports", "detail", sportId] as const,
-};
 
 export const useSportsList = (filter: GetAllSportsRequest = {}) =>
   useQuery({

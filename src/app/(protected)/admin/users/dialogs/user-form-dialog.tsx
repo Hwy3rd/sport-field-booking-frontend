@@ -155,12 +155,16 @@ export function UserFormDialog(props: UserFormDialogProps) {
   const validateByMode = (name: "username" | "fullName" | "email" | "password" | "newPassword") => {
     return ({ value }: { value: string }) => {
       if (mode === "create") {
-        const schema = createUserSchema.shape[name as keyof typeof createUserSchema.shape] as z.ZodTypeAny;
+        const schema = createUserSchema.shape[
+          name as keyof typeof createUserSchema.shape
+        ] as z.ZodTypeAny;
         const result = schema.safeParse(value);
         return result.success ? undefined : result.error.issues[0]?.message;
       }
       if (mode === "edit" && name !== "password" && name !== "newPassword") {
-        const schema = editUserSchema.shape[name as keyof typeof editUserSchema.shape] as z.ZodTypeAny;
+        const schema = editUserSchema.shape[
+          name as keyof typeof editUserSchema.shape
+        ] as z.ZodTypeAny;
         const result = schema.safeParse(value);
         return result.success ? undefined : result.error.issues[0]?.message;
       }
@@ -205,142 +209,150 @@ export function UserFormDialog(props: UserFormDialogProps) {
           }}
         >
           <FieldGroup className="grid gap-4 md:grid-cols-2">
-          {mode !== "password" ? (
-            <>
-              <form.Field
-                name="username"
-                validators={{ onBlur: validateByMode("username") }}
-                children={(field) => (
-                  <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
-                    <FieldLabel htmlFor={field.name}>Username</FieldLabel>
-                    <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                    <FieldError
-                      errors={toFieldErrors(field.state.meta.errors)}
-                    />
-                  </Field>
-                )}
-              />
-              <form.Field
-                name="fullName"
-                validators={{ onBlur: validateByMode("fullName") }}
-                children={(field) => (
-                  <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
-                    <FieldLabel htmlFor={field.name}>Full name</FieldLabel>
-                    <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                    <FieldError
-                      errors={toFieldErrors(field.state.meta.errors)}
-                    />
-                  </Field>
-                )}
-              />
-              <form.Field
-                name="email"
-                validators={{ onBlur: validateByMode("email") }}
-                children={(field) => (
-                  <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
-                    <FieldLabel htmlFor={field.name}>Email</FieldLabel>
-                    <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                    <FieldError
-                      errors={toFieldErrors(field.state.meta.errors)}
-                    />
-                  </Field>
-                )}
-              />
-              <form.Field
-                name="phone"
-                children={(field) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Phone</FieldLabel>
-                    <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} />
-                  </Field>
-                )}
-              />
-              {mode === "create" ? (
+            {mode !== "password" ? (
+              <>
                 <form.Field
-                  name="password"
-                  validators={{ onBlur: validateByMode("password") }}
+                  name="username"
+                  validators={{ onBlur: validateByMode("username") }}
                   children={(field) => (
                     <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
-                      <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                      <FieldLabel htmlFor={field.name}>Username</FieldLabel>
                       <Input
-                        type="password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                       />
-                      <FieldError
-                        errors={toFieldErrors(field.state.meta.errors)}
+                      <FieldError errors={toFieldErrors(field.state.meta.errors)} />
+                    </Field>
+                  )}
+                />
+                <form.Field
+                  name="fullName"
+                  validators={{ onBlur: validateByMode("fullName") }}
+                  children={(field) => (
+                    <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
+                      <FieldLabel htmlFor={field.name}>Full name</FieldLabel>
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                      <FieldError errors={toFieldErrors(field.state.meta.errors)} />
+                    </Field>
+                  )}
+                />
+                <form.Field
+                  name="email"
+                  validators={{ onBlur: validateByMode("email") }}
+                  children={(field) => (
+                    <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
+                      <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                      <FieldError errors={toFieldErrors(field.state.meta.errors)} />
+                    </Field>
+                  )}
+                />
+                <form.Field
+                  name="phone"
+                  children={(field) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Phone</FieldLabel>
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
                       />
                     </Field>
                   )}
                 />
-              ) : null}
+                {mode === "create" ? (
+                  <form.Field
+                    name="password"
+                    validators={{ onBlur: validateByMode("password") }}
+                    children={(field) => (
+                      <Field data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
+                        <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                        <Input
+                          type="password"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                        <FieldError errors={toFieldErrors(field.state.meta.errors)} />
+                      </Field>
+                    )}
+                  />
+                ) : null}
+                <form.Field
+                  name="role"
+                  children={(field) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Role</FieldLabel>
+                      <Select
+                        value={field.state.value}
+                        onValueChange={(value) => field.handleChange(value as UserRole)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {USER_ROLE_VALUES.map((item) => (
+                            <SelectItem key={item} value={item}>
+                              {item}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                />
+                <form.Field
+                  name="status"
+                  children={(field) => (
+                    <Field className="md:col-span-2">
+                      <FieldLabel htmlFor={field.name}>Status</FieldLabel>
+                      <Select
+                        value={field.state.value}
+                        onValueChange={(value) => field.handleChange(value as UserStatus)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {USER_STATUS_VALUES.map((item) => (
+                            <SelectItem key={item} value={item}>
+                              {item}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                />
+              </>
+            ) : (
               <form.Field
-                name="role"
+                name="newPassword"
+                validators={{ onBlur: validateByMode("newPassword") }}
                 children={(field) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Role</FieldLabel>
-                    <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as UserRole)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {USER_ROLE_VALUES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <Field
+                    className="md:col-span-2"
+                    data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}
+                  >
+                    <FieldLabel htmlFor={field.name}>New password</FieldLabel>
+                    <Input
+                      type="password"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                    <FieldError errors={toFieldErrors(field.state.meta.errors)} />
                   </Field>
                 )}
               />
-              <form.Field
-                name="status"
-                children={(field) => (
-                  <Field className="md:col-span-2">
-                    <FieldLabel htmlFor={field.name}>Status</FieldLabel>
-                    <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as UserStatus)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {USER_STATUS_VALUES.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              />
-            </>
-          ) : (
-            <form.Field
-              name="newPassword"
-              validators={{ onBlur: validateByMode("newPassword") }}
-              children={(field) => (
-                <Field className="md:col-span-2" data-invalid={field.state.meta.isTouched && !field.state.meta.isValid}>
-                  <FieldLabel htmlFor={field.name}>New password</FieldLabel>
-                  <Input
-                    type="password"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                  <FieldError
-                    errors={toFieldErrors(field.state.meta.errors)}
-                  />
-                </Field>
-              )}
-            />
-          )}
+            )}
           </FieldGroup>
 
-          <DialogFooter className="md:col-span-2">
-            <Button
-              type="submit"
-              disabled={isCreating || isUpdating || isChangingPassword}
-            >
+          <DialogFooter className="pt-4 md:col-span-2">
+            <Button type="submit" disabled={isCreating || isUpdating || isChangingPassword}>
               {isCreating || isUpdating || isChangingPassword
                 ? "Saving..."
                 : mode === "create"

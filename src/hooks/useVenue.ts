@@ -5,22 +5,18 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/helper/get-message";
 import { VenueService } from "@/services/venue.service";
+import { venueKeys } from "@/lib/query-keys/venue.keys";
 import type {
   CreateVenueRequest,
   SearchVenuesRequest,
   UpdateVenueRequest,
 } from "@/types/venue.type";
 
-export const venueKeys = {
-  all: ["venues"] as const,
-  list: (filter?: SearchVenuesRequest) => ["venues", "list", filter ?? {}] as const,
-  detail: (venueId: string) => ["venues", "detail", venueId] as const,
-};
-
 export const useVenuesList = (filter: SearchVenuesRequest = {}) =>
   useQuery({
     queryKey: venueKeys.list(filter),
     queryFn: () => VenueService.searchVenues(filter),
+    staleTime: 60_000,
   });
 
 export const useVenueDetail = (venueId: string, enabled = true) =>

@@ -11,7 +11,7 @@ import type {
   SearchBookingsRequest,
   UpdateBookingRequest,
 } from "@/types/booking.type";
-import { courtKeys } from "./useCourt";
+import { courtKeys } from "@/lib/query-keys/court.keys";
 
 export const bookingKeys = {
   all: ["bookings"] as const,
