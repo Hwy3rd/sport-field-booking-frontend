@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter, Lexend } from "next/font/google";
+import { IBM_Plex_Mono, Manrope, Sora } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 
-/** Neo-grotesk sans — đọc tốt trên UI dài, có subset tiếng Việt. */
-const fontSans = Inter({
+const fontSans = Manrope({
   subsets: ["latin", "vietnamese"],
-  variable: "--font-inter",
+  variable: "--font-manrope",
   display: "swap",
 });
 
-/** Sans riêng cho tiêu đề — phân tầng rõ, vẫn “product”, không kiểu display quá đậm. */
-const fontHeading = Lexend({
+const fontHeading = Sora({
   subsets: ["latin", "vietnamese"],
-  variable: "--font-lexend",
+  variable: "--font-sora",
   display: "swap",
 });
 

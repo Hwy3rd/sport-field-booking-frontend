@@ -5,15 +5,16 @@ import { useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePagination } from "@/components/shared/table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBookingHistory } from "@/hooks/useBooking";
 
 export default function ProfileBookingsPage() {
   const [page, setPage] = useState(1);
-  const bookingQuery = useBookingHistory({ current: page, limit: 10 });
+  const [pageSize, setPageSize] = useState(10);
+  const bookingQuery = useBookingHistory({ current: page, limit: pageSize });
   const bookings = bookingQuery.data?.items ?? [];
 
   return (
@@ -41,7 +42,7 @@ export default function ProfileBookingsPage() {
               <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <div className="font-medium">Booking #{booking.id.slice(0, 8)}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-muted-foreground text-sm">
                     Created at {dayjs(booking.createdAt).format("DD/MM/YYYY HH:mm")}
                   </div>
                   <div className="text-sm">Total: {booking.totalPrice.toLocaleString()} VND</div>
@@ -53,11 +54,15 @@ export default function ProfileBookingsPage() {
         </div>
       )}
 
-      <Pagination
-        current={bookingQuery.data?.current ?? page}
-        totalPages={bookingQuery.data?.totalPages ?? 1}
-        onChange={setPage}
-      />
+      {bookingQuery.data ? (
+        <TablePagination
+          total={bookingQuery.data.total}
+          currentPage={bookingQuery.data.current}
+          pageSize={bookingQuery.data.limit}
+          onChangePage={setPage}
+          onChangePageSize={setPageSize}
+        />
+      ) : null}
     </div>
   );
 }
