@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, Pencil, ShoppingCart, Trash2 } from "lucide-react";
 
@@ -18,8 +19,10 @@ import {
 } from "@/components/ui/sheet";
 import { formatBookingDate, formatHoldTime } from "@/lib/helper/date";
 import { useCartStore } from "@/stores/cart.store";
+import { ROUTES } from "@/lib/constants/routes.constant";
 
 export function CartSheet() {
+  const router = useRouter();
   const items = useCartStore((state) => state.items);
   const removeCourt = useCartStore((state) => state.removeCourt);
   const removeTimeSlot = useCartStore((state) => state.removeTimeSlot);
@@ -173,13 +176,18 @@ export function CartSheet() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={clearCart}>
-                  Clear cart
+              <div className="flex flex-col gap-2 pt-1">
+                <Button className="w-full" onClick={() => router.push(ROUTES.CHECKOUT)}>
+                  Proceed to Checkout
                 </Button>
-                <Button asChild className="flex-1">
-                  <Link href="/search">Continue booking</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="flex-1" onClick={clearCart}>
+                    Clear cart
+                  </Button>
+                  <Button asChild variant="outline" className="flex-1">
+                    <Link href={ROUTES.SEARCH}>Continue booking</Link>
+                  </Button>
+                </div>
               </div>
             </>
           )}
