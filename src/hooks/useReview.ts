@@ -10,7 +10,7 @@ import type {
   GetVenueReviewsRequest,
   UpdateReviewRequest,
 } from "@/types/review.type";
-import { venueKeys } from "./useVenue";
+import { venueKeys } from "@/lib/query-keys/venue.keys";
 
 export const reviewKeys = {
   all: ["reviews"] as const,

@@ -66,7 +66,7 @@ interface OwnerBookingsDialogsProps {
   setIsCreateOpen: (open: boolean) => void;
   createForm: UseFormReturn<CreateBookingForm>;
   onCreate: (values: CreateBookingForm) => void;
-  createBookingMutation: UseMutationResult<unknown, Error, unknown, unknown>;
+  createBookingMutation: { isPending: boolean };
   detailBookingId: string | null;
   setDetailBookingId: (value: string | null) => void;
   detailQuery: {

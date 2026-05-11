@@ -32,3 +32,13 @@ export const TIME_SLOT_WEEKDAY_LABEL_EN: Record<TimeSlotWeekday, string> = {
   [TIME_SLOT_WEEKDAY.SATURDAY]: "Saturday",
   [TIME_SLOT_WEEKDAY.SUNDAY]: "Sunday",
 };
+
+export const TIME_SLOT_WEEKDAY_LABEL_VI: Record<TimeSlotWeekday, string> = {
+  [TIME_SLOT_WEEKDAY.MONDAY]: "Thứ Hai",
+  [TIME_SLOT_WEEKDAY.TUESDAY]: "Thứ Ba",
+  [TIME_SLOT_WEEKDAY.WEDNESDAY]: "Thứ Tư",
+  [TIME_SLOT_WEEKDAY.THURSDAY]: "Thứ Năm",
+  [TIME_SLOT_WEEKDAY.FRIDAY]: "Thứ Sáu",
+  [TIME_SLOT_WEEKDAY.SATURDAY]: "Thứ Bảy",
+  [TIME_SLOT_WEEKDAY.SUNDAY]: "Chủ Nhật",
+};
