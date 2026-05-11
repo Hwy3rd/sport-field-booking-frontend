@@ -1,8 +1,6 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { env } from "../env";
-import { ApiResponse } from "@/types/api.type";
-import { RefreshTokenResponse } from "@/types/auth.type";
 
 const BASE_URL = env.CLOUD_API_URL ?? env.LOCAL_API_URL;
 
@@ -33,7 +31,7 @@ const getRefreshedAccessToken = async (): Promise<string> => {
         refreshTokenPromise = null;
       });
   }
-``
+
   return refreshTokenPromise;
 };
 

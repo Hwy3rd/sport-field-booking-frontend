@@ -37,10 +37,12 @@ export const useLogin = (options?: { redirectTo?: string }) => {
 };
 
 export const useRegister = () => {
+  const router = useRouter();
   return useMutation({
     mutationFn: (payload: RegisterRequest) => AuthService.register(payload),
     onSuccess: () => {
       toast.success("Registration successful, you can now log in");
+      router.push("/login");
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Registration failed"));

@@ -1,12 +1,11 @@
 export const TIME_SLOT_STATUS = {
-  AVAILABLE: 'available',
-  BOOKED: 'booked',
-  CANCELLED: 'cancelled',
-  BLOCKED: 'blocked',
+  AVAILABLE: "available",
+  BOOKED: "booked",
+  CANCELLED: "cancelled",
+  BLOCKED: "blocked",
 } as const;
 
-export type TimeSlotStatus =
-  (typeof TIME_SLOT_STATUS)[keyof typeof TIME_SLOT_STATUS];
+export type TimeSlotStatus = (typeof TIME_SLOT_STATUS)[keyof typeof TIME_SLOT_STATUS];
 
 export const TIME_SLOT_STATUS_VALUES = Object.values(TIME_SLOT_STATUS);
 
@@ -20,7 +19,16 @@ export const TIME_SLOT_WEEKDAY = {
   SUNDAY: 7,
 } as const;
 
-export type TimeSlotWeekday =
-  (typeof TIME_SLOT_WEEKDAY)[keyof typeof TIME_SLOT_WEEKDAY];
+export type TimeSlotWeekday = (typeof TIME_SLOT_WEEKDAY)[keyof typeof TIME_SLOT_WEEKDAY];
 
 export const TIME_SLOT_WEEKDAY_VALUES = Object.values(TIME_SLOT_WEEKDAY);
+
+export const TIME_SLOT_WEEKDAY_LABEL_EN: Record<TimeSlotWeekday, string> = {
+  [TIME_SLOT_WEEKDAY.MONDAY]: "Monday",
+  [TIME_SLOT_WEEKDAY.TUESDAY]: "Tuesday",
+  [TIME_SLOT_WEEKDAY.WEDNESDAY]: "Wednesday",
+  [TIME_SLOT_WEEKDAY.THURSDAY]: "Thursday",
+  [TIME_SLOT_WEEKDAY.FRIDAY]: "Friday",
+  [TIME_SLOT_WEEKDAY.SATURDAY]: "Saturday",
+  [TIME_SLOT_WEEKDAY.SUNDAY]: "Sunday",
+};

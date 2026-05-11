@@ -2,17 +2,26 @@ import api from "@/lib/api/axios";
 import { ApiListResponse, ApiResponse } from "@/types/api.type";
 import {
   CreateVenueRequest,
+  GetAllVenuesRequest,
   SearchVenuesRequest,
   UpdateVenueRequest,
   Venue,
 } from "@/types/venue.type";
 
 export const VenueService = {
+  getAllVenues: async (filter: GetAllVenuesRequest): Promise<ApiListResponse<Venue>> => {
+    const { data } = await api.get<ApiResponse<ApiListResponse<Venue>>>("/venue", {
+      params: filter,
+    });
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Failed to fetch venues");
+    }
+
+    return data.data;
+  },
+
   searchVenues: async (filter: SearchVenuesRequest): Promise<ApiListResponse<Venue>> => {
-    const { data } = await api.post<ApiResponse<ApiListResponse<Venue>>>(
-      "/venue/search",
-      filter,
-    );
+    const { data } = await api.post<ApiResponse<ApiListResponse<Venue>>>("/venue/search", filter);
     if (!data.success || !data.data) {
       throw new Error(data.message || "Failed to fetch venues");
     }

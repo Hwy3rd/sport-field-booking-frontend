@@ -25,7 +25,7 @@ export const UserService = {
   },
 
   updateUser: async (updateData: UpdateUserRequest): Promise<UpdateUserResponse> => {
-    const { data } = await api.put<ApiResponse<UpdateUserResponse>>("/user/me", updateData);
+    const { data } = await api.patch<ApiResponse<UpdateUserResponse>>("/user/me", updateData);
     if (!data.success || !data.data) {
       throw new Error(data.message || "Failed to update user");
     }
@@ -34,8 +34,8 @@ export const UserService = {
   },
 
   changePassword: async (userData: ChangePasswordRequest): Promise<ChangePasswordResponse> => {
-    const { data } = await api.post<ApiResponse<ChangePasswordResponse>>(
-      "/user/me/change-password",
+    const { data } = await api.patch<ApiResponse<ChangePasswordResponse>>(
+      "/user/change-password",
       userData,
     );
     if (!data.success || !data.data) {
@@ -47,7 +47,7 @@ export const UserService = {
 
   //Role admin endpoints
   getUserById: async (userId: string): Promise<User> => {
-    const { data } = await api.get<ApiResponse<User>>(`/admin/users/${userId}`);
+    const { data } = await api.get<ApiResponse<User>>(`/user/${userId}`);
     if (!data.success || !data.data) {
       throw new Error(data.message || "Failed to fetch user");
     }
@@ -56,7 +56,7 @@ export const UserService = {
   },
 
   getAllUsers: async (filter: GetAllUsersRequest): Promise<ApiListResponse<User>> => {
-    const { data } = await api.get<ApiResponse<ApiListResponse<User>>>("/admin/users", {
+    const { data } = await api.get<ApiResponse<ApiListResponse<User>>>("/user", {
       params: filter,
     });
     if (!data.success || !data.data) {
@@ -67,8 +67,8 @@ export const UserService = {
   },
 
   adminUpdateUser: async (userData: UpdateUserAdminRequest): Promise<AdminUpdateUserResponse> => {
-    const { data } = await api.put<ApiResponse<AdminUpdateUserResponse>>(
-      `/admin/users/${userData.id}`,
+    const { data } = await api.patch<ApiResponse<AdminUpdateUserResponse>>(
+      `/user/${userData.id}`,
       userData,
     );
     if (!data.success || !data.data) {
@@ -79,7 +79,7 @@ export const UserService = {
   },
 
   adminCreateUser: async (userData: CreateUserRequest): Promise<User> => {
-    const { data } = await api.post<ApiResponse<User>>("/admin/users", userData);
+    const { data } = await api.post<ApiResponse<User>>("/user", userData);
     if (!data.success || !data.data) {
       throw new Error(data.message || "Failed to create user");
     }
@@ -92,7 +92,7 @@ export const UserService = {
     userData: AdminChangePasswordRequest,
   ): Promise<ChangePasswordResponse> => {
     const { data } = await api.post<ApiResponse<ChangePasswordResponse>>(
-      `/admin/users/${userId}/change-password`,
+      `/user/${userId}/change-password`,
       userData,
     );
     if (!data.success || !data.data) {
@@ -103,7 +103,7 @@ export const UserService = {
   },
 
   deleteUser: async (userId: string): Promise<any> => {
-    const { data } = await api.delete<ApiResponse<null>>(`/admin/users/${userId}`);
+    const { data } = await api.delete<ApiResponse<null>>(`/user/${userId}`);
     if (!data.success) {
       throw new Error(data.message || "Failed to delete user");
     }
@@ -112,8 +112,8 @@ export const UserService = {
   },
 
   deleteMultipleUsers: async (userIds: string[]): Promise<any> => {
-    const { data } = await api.delete<ApiResponse<null>>(`/admin/users`, {
-      data: { userIds },
+    const { data } = await api.post<ApiResponse<null>>(`/user/bulk-delete`, {
+      ids: userIds,
     });
     if (!data.success) {
       throw new Error(data.message || "Failed to delete users");
