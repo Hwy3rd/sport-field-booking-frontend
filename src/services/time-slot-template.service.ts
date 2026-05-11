@@ -29,6 +29,14 @@ export const TimeSlotTemplateService = {
     return data.data;
   },
 
+  getGroupNames: async (venueId: string): Promise<string[]> => {
+    const { data } = await api.get<ApiResponse<string[]>>(`/time-slot-template/group-names/${venueId}`);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Failed to fetch template group names");
+    }
+    return data.data;
+  },
+
   createTimeSlotTemplate: async (
     payload: CreateTimeSlotTemplateRequest,
   ): Promise<TimeSlotTemplate> => {

@@ -20,6 +20,8 @@ import {
 import { formatBookingDate, formatHoldTime } from "@/lib/helper/date";
 import { useCartStore } from "@/stores/cart.store";
 import { ROUTES } from "@/lib/constants/routes.constant";
+import { useUnlockTimeSlot } from "@/hooks/useTimeSlot";
+import { toast } from "sonner";
 
 export function CartSheet() {
   const router = useRouter();
@@ -29,6 +31,37 @@ export function CartSheet() {
   const pruneExpiredItems = useCartStore((state) => state.pruneExpiredItems);
   const clearCart = useCartStore((state) => state.clearCart);
   const [nowTick, setNowTick] = useState(Date.now());
+  const unlockTimeSlotMutation = useUnlockTimeSlot();
+
+  const handleUnlockAndRemoveCourt = async (courtId: string, timeSlots: {id: string}[]) => {
+    try {
+      await Promise.all(timeSlots.map(slot => unlockTimeSlotMutation.mutateAsync(slot.id)));
+      removeCourt(courtId);
+    } catch {
+      toast.error("Failed to unlock some slots");
+      removeCourt(courtId);
+    }
+  };
+
+  const handleUnlockAndRemoveSlot = async (courtId: string, slotId: string) => {
+    try {
+      await unlockTimeSlotMutation.mutateAsync(slotId);
+      removeTimeSlot(courtId, slotId);
+    } catch {
+      toast.error("Failed to unlock slot");
+      removeTimeSlot(courtId, slotId);
+    }
+  };
+
+  const handleClearCart = async () => {
+    const allSlots = items.flatMap(item => item.timeSlots);
+    try {
+      await Promise.all(allSlots.map(slot => unlockTimeSlotMutation.mutateAsync(slot.id)));
+      clearCart();
+    } catch {
+      clearCart();
+    }
+  };
 
   useEffect(() => {
     pruneExpiredItems();
@@ -124,7 +157,7 @@ export function CartSheet() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => removeCourt(item.court.id)}
+                          onClick={() => handleUnlockAndRemoveCourt(item.court.id, item.timeSlots)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -146,7 +179,7 @@ export function CartSheet() {
                             <button
                               type="button"
                               className="text-muted-foreground hover:bg-muted hover:text-foreground ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full transition-colors"
-                              onClick={() => removeTimeSlot(item.court.id, slot.id)}
+                              onClick={() => handleUnlockAndRemoveSlot(item.court.id, slot.id)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -181,7 +214,7 @@ export function CartSheet() {
                   Proceed to Checkout
                 </Button>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" className="flex-1" onClick={clearCart}>
+                  <Button variant="outline" className="flex-1" onClick={handleClearCart}>
                     Clear cart
                   </Button>
                   <Button asChild variant="outline" className="flex-1">

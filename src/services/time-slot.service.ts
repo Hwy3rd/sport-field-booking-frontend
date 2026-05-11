@@ -64,4 +64,20 @@ export const TimeSlotService = {
 
     return data.data;
   },
+
+  lockTimeSlot: async (timeSlotId: string): Promise<TimeSlot> => {
+    const { data } = await api.post<ApiResponse<TimeSlot>>(`/time-slot/${timeSlotId}/lock`);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Failed to lock time slot");
+    }
+    return data.data;
+  },
+
+  unlockTimeSlot: async (timeSlotId: string): Promise<TimeSlot> => {
+    const { data } = await api.post<ApiResponse<TimeSlot>>(`/time-slot/${timeSlotId}/unlock`);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Failed to unlock time slot");
+    }
+    return data.data;
+  },
 };

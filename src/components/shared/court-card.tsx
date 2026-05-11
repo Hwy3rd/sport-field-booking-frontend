@@ -5,11 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CourtBookingDialog } from "@/components/shared/court-booking-dialog";
 import { useCartStore } from "@/stores/cart.store";
+import { useLockTimeSlot } from "@/hooks/useTimeSlot";
 import type { Court } from "@/types/court.type";
 import Link from "next/link";
+import { useState } from "react";
 
 export function CourtCard({ court }: { court: Court }) {
   const saveCourtBooking = useCartStore((state) => state.saveCourtBooking);
+  const lockTimeSlotMutation = useLockTimeSlot();
+  const [isLocking, setIsLocking] = useState(false);
 
   return (
     <Card className="surface-card transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -39,14 +43,26 @@ export function CourtCard({ court }: { court: Court }) {
               Add to cart
             </Button>
           }
-          onConfirm={({ selectedDate, timeSlots }) => {
-            const result = saveCourtBooking(court, selectedDate, timeSlots);
-            if (!result.saved) {
-              toast.info("Choose at least one available time slot");
-              return;
+          onConfirm={async ({ selectedDate, timeSlots }) => {
+            setIsLocking(true);
+            try {
+              // Lock all selected time slots
+              await Promise.all(
+                timeSlots.map((slot) => lockTimeSlotMutation.mutateAsync(slot.id))
+              );
+              const result = saveCourtBooking(court, selectedDate, timeSlots);
+              if (!result.saved) {
+                toast.info("Choose at least one available time slot");
+                return;
+              }
+              toast.success("Court added with selected time slots");
+            } catch (error) {
+              toast.error("Failed to reserve some time slots. They might have been taken.");
+            } finally {
+              setIsLocking(false);
             }
-            toast.success("Court added with selected time slots");
           }}
+          isSubmitting={isLocking}
         />
         <Link href={`/courts/${court.id}`} className="text-primary text-sm font-medium">
           View detail

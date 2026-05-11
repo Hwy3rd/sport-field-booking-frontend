@@ -39,7 +39,7 @@ import {
 } from "@/hooks/useCourt";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSportsList } from "@/hooks/useSport";
-import { useTimeSlots, useUpdateTimeSlot } from "@/hooks/useTimeSlot";
+import { useTimeSlots, useCreateTimeSlot, useUpdateTimeSlot } from "@/hooks/useTimeSlot";
 import { useVenues } from "@/hooks/useVenue";
 import type { Court } from "@/types/court.type";
 import type { UpdateTimeSlotRequest } from "@/types/time-slot.type";
@@ -47,8 +47,8 @@ import { CourtDetailDialog } from "@/app/(protected)/admin/courts/dialogs/court-
 import { CourtFilterDialog } from "@/app/(protected)/admin/courts/dialogs/court-filter-dialog";
 import {
   CourtFormDialog,
-  type CourtTimeSlotConfigDraft,
   type CourtFormValue,
+  type CourtTimeSlotConfigDraft,
 } from "@/app/(protected)/admin/courts/dialogs/court-form-dialog";
 
 const getCourtStatusBadgeVariant = (status: string) => {
@@ -98,6 +98,7 @@ export default function AdminCourtsPage() {
   const deleteMultipleCourtsMutation = useDeleteMultipleCourts();
   const deleteCourtMutation = useDeleteCourt();
   const updateCourtMutation = useUpdateCourt();
+  const createTimeSlotMutation = useCreateTimeSlot();
   const updateTimeSlotMutation = useUpdateTimeSlot();
   const venuesQuery = useVenues({ current: 1, limit: 100, filter: {} });
   const sportsQuery = useSportsList({ current: 1, limit: 100 });
@@ -109,11 +110,6 @@ export default function AdminCourtsPage() {
     sportId: filterSportId === "all" ? undefined : filterSportId,
   });
   const detailCourtQuery = useCourtDetail(detailCourtId ?? "", !!detailCourtId);
-  const shouldLoadCourtTimeSlots = formMode === "edit" && !!editingCourt?.id;
-  const courtTimeSlotsQuery = useTimeSlots(
-    { current: 1, limit: 300, courtId: editingCourt?.id },
-    { enabled: shouldLoadCourtTimeSlots },
-  );
 
   const courts = courtsQuery.data?.items ?? [];
   const isAllSelected = useMemo(
@@ -121,75 +117,16 @@ export default function AdminCourtsPage() {
     [courts, selectedIds],
   );
 
-  const buildTimeSlotConfig = (values: CourtFormValue) => {
-    if (
-      values.slotMode === "manual" &&
-      values.manualDate &&
-      values.manualStartTime &&
-      values.manualEndTime &&
-      values.manualPrice !== undefined
-    ) {
-      return {
-        manualSlots: [
-          {
-            date: values.manualDate,
-            startTime: values.manualStartTime,
-            endTime: values.manualEndTime,
-            price: values.manualPrice,
-          },
-        ],
-      };
-    }
-    if (
-      values.slotMode === "template" &&
-      values.templateStartDate &&
-      values.templateEndDate &&
-      values.templateWeekdays?.length &&
-      values.templateStartTime &&
-      values.templateEndTime &&
-      values.templatePrice !== undefined
-    ) {
-      return {
-        templateGeneration: {
-          startDate: values.templateStartDate,
-          endDate: values.templateEndDate,
-          weekdays: values.templateWeekdays as any,
-          startTime: values.templateStartTime,
-          endTime: values.templateEndTime,
-          price: values.templatePrice,
-          createTemplate: values.createTemplate ?? true,
-        },
-      };
-    }
-    return undefined;
-  };
-
-  const mergeTimeSlotConfigs = (configs: CourtTimeSlotConfigDraft[]) => {
-    if (!configs.length) return undefined;
-    const manualSlots = configs.flatMap((item) => item.manualSlots ?? []);
-    const latestTemplate = [...configs]
-      .reverse()
-      .find((item) => item.templateGeneration)?.templateGeneration;
-
-    const merged: any = {};
-    if (manualSlots.length) merged.manualSlots = manualSlots;
-    if (latestTemplate) merged.templateGeneration = latestTemplate;
-    return Object.keys(merged).length ? merged : undefined;
-  };
-
-  const handleCreateCourt = async (
-    values: CourtFormValue,
-    pendingTimeSlotConfigs: CourtTimeSlotConfigDraft[],
-  ) => {
+  const handleCreateCourt = async (values: CourtFormValue, pendingConfigs: CourtTimeSlotConfigDraft[]) => {
     const payload: any = {
       venueId: values.venueId,
       sportId: values.sportId,
       name: values.name,
       pricePerHour: values.pricePerHour,
       imageUrl: values.imageUrl,
+      templateNames: values.templateNames,
+      manualTimeSlots: pendingConfigs.flatMap((c) => c.manualSlots || []),
     };
-    const config = mergeTimeSlotConfigs(pendingTimeSlotConfigs) ?? buildTimeSlotConfig(values);
-    if (config) payload.timeSlotConfig = config;
     try {
       await createCourtMutation.mutateAsync(payload);
       setFormMode(null);
@@ -197,10 +134,7 @@ export default function AdminCourtsPage() {
     } catch {}
   };
 
-  const handleEditCourt = async (
-    values: CourtFormValue,
-    pendingTimeSlotConfigs: CourtTimeSlotConfigDraft[],
-  ) => {
+  const handleEditCourt = async (values: CourtFormValue, pendingConfigs: CourtTimeSlotConfigDraft[]) => {
     if (!editingCourt) return;
     const payload: any = {
       venueId: values.venueId,
@@ -208,11 +142,12 @@ export default function AdminCourtsPage() {
       name: values.name,
       pricePerHour: values.pricePerHour,
       imageUrl: values.imageUrl,
+      templateNames: values.templateNames,
+      manualTimeSlots: pendingConfigs.flatMap((c) => c.manualSlots || []),
     };
-    const config = mergeTimeSlotConfigs(pendingTimeSlotConfigs) ?? buildTimeSlotConfig(values);
-    if (config) payload.timeSlotConfig = config;
     try {
       await updateCourtMutation.mutateAsync({ courtId: editingCourt.id, payload });
+
       setEditingCourt(null);
       setFormMode(null);
       courtsQuery.refetch();
@@ -421,10 +356,6 @@ export default function AdminCourtsPage() {
         court={editingCourt}
         venues={venuesQuery.data?.items ?? []}
         sports={sportsQuery.data?.items ?? []}
-        courtTimeSlots={shouldLoadCourtTimeSlots ? (courtTimeSlotsQuery.data?.items ?? []) : []}
-        isTimeSlotsLoading={shouldLoadCourtTimeSlots ? courtTimeSlotsQuery.isLoading : false}
-        isSavingTimeSlot={updateCourtMutation.isPending || updateTimeSlotMutation.isPending}
-        onUpdateTimeSlot={updateExistingTimeSlot}
         onOpenChange={(open: boolean) => {
           if (!open) {
             setFormMode(null);

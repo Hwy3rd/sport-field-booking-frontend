@@ -72,14 +72,18 @@ export const useCartStore = create<CartState>()(
         };
 
         set((state) => {
-          const exists = state.items.some((item) => item.court.id === court.id);
+          const exists = state.items.some(
+            (item) => item.court.id === court.id && item.selectedDate === selectedDate
+          );
           if (!exists) {
             return { items: [...state.items, nextItem] };
           }
 
           return {
             items: state.items.map((item) =>
-              item.court.id === court.id ? { ...item, selectedDate, timeSlots } : item,
+              item.court.id === court.id && item.selectedDate === selectedDate
+                ? { ...item, timeSlots }
+                : item,
             ),
           };
         });
@@ -130,9 +134,9 @@ export const useCartStore = create<CartState>()(
                     id: legacyItem.id,
                     name: legacyItem.name ?? "Unknown court",
                     pricePerHour: legacyItem.pricePerHour ?? 0,
-                    status: legacyItem.status ?? "unknown",
+                    status: (legacyItem.status as any) ?? "active",
                     imageUrl: undefined,
-                    venueId: undefined,
+                    venueId: "",
                     venue: legacyItem.venueName
                       ? { id: "", name: legacyItem.venueName }
                       : undefined,

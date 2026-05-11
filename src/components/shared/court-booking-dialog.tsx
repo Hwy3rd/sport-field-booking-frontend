@@ -173,6 +173,7 @@ type CourtBookingDialogProps = {
   initialDate?: string;
   initialTimeSlots?: TimeSlot[];
   onConfirm: (payload: { selectedDate: string; timeSlots: TimeSlot[] }) => void;
+  isSubmitting?: boolean;
 };
 
 export function CourtBookingDialog({
@@ -184,6 +185,7 @@ export function CourtBookingDialog({
   initialDate,
   initialTimeSlots = EMPTY_TIME_SLOTS,
   onConfirm,
+  isSubmitting = false,
 }: CourtBookingDialogProps) {
   const [open, setOpen] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -394,11 +396,11 @@ export function CourtBookingDialog({
             <Button
               type="button"
               className="w-full sm:w-auto"
-              disabled={!canConfirm}
+              disabled={!canConfirm || isSubmitting}
               onClick={handleConfirm}
             >
               <Sparkles className="mr-2 h-4 w-4" />
-              {confirmLabel}
+              {isSubmitting ? "Locking..." : confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

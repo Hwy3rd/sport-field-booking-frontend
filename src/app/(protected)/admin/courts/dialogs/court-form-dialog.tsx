@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  TIME_SLOT_WEEKDAY_LABEL_EN,
-  TIME_SLOT_WEEKDAY_VALUES,
-} from "@/lib/constants/time-slot.constant";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Court } from "@/types/court.type";
-import type { UpdateTimeSlotRequest } from "@/types/time-slot.type";
+import { TimeSlotTemplateService } from "@/services/time-slot-template.service";
+import { useQuery } from "@tanstack/react-query";
+import { useTimeSlotTemplates } from "@/hooks/useTimeSlot";
+import { TIME_SLOT_WEEKDAY_LABEL_EN } from "@/lib/constants/time-slot.constant";
+import { getLocalDateString } from "@/lib/helper/date";
 
 type FormMode = "create" | "edit" | null;
 
@@ -35,31 +36,13 @@ interface Option {
   name: string;
 }
 
-interface CourtTimeSlotItem {
-  id: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  price: number;
-  status: string;
-}
-
 export interface CourtTimeSlotConfigDraft {
-  manualSlots?: Array<{
+  manualSlots?: {
     date: string;
     startTime: string;
     endTime: string;
     price: number;
-  }>;
-  templateGeneration?: {
-    startDate: string;
-    endDate: string;
-    weekdays: number[];
-    startTime: string;
-    endTime: string;
-    price: number;
-    createTemplate: boolean;
-  };
+  }[];
 }
 
 export interface CourtFormValue {
@@ -68,18 +51,11 @@ export interface CourtFormValue {
   name: string;
   pricePerHour: number;
   imageUrl?: string;
-  slotMode?: "none" | "manual" | "template";
+  templateNames: string[];
   manualDate?: string;
   manualStartTime?: string;
   manualEndTime?: string;
   manualPrice?: number;
-  templateStartDate?: string;
-  templateEndDate?: string;
-  templateWeekdays?: number[];
-  templateStartTime?: string;
-  templateEndTime?: string;
-  templatePrice?: number;
-  createTemplate?: boolean;
 }
 
 interface CourtFormDialogProps {
@@ -87,13 +63,9 @@ interface CourtFormDialogProps {
   court: Court | null;
   venues: Option[];
   sports: Option[];
-  courtTimeSlots: CourtTimeSlotItem[];
-  isTimeSlotsLoading: boolean;
-  isSavingTimeSlot: boolean;
-  onUpdateTimeSlot: (id: string, payload: UpdateTimeSlotRequest) => void;
   onOpenChange: (open: boolean) => void;
-  onCreate: (values: CourtFormValue, timeSlotConfigs: CourtTimeSlotConfigDraft[]) => void;
-  onEdit: (values: CourtFormValue, timeSlotConfigs: CourtTimeSlotConfigDraft[]) => void;
+  onCreate: (values: CourtFormValue, pendingConfigs: CourtTimeSlotConfigDraft[]) => void;
+  onEdit: (values: CourtFormValue, pendingConfigs: CourtTimeSlotConfigDraft[]) => void;
   isCreating: boolean;
   isUpdating: boolean;
 }
@@ -104,10 +76,6 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
     court,
     venues,
     sports,
-    courtTimeSlots,
-    isTimeSlotsLoading,
-    isSavingTimeSlot,
-    onUpdateTimeSlot,
     onOpenChange,
     onCreate,
     onEdit,
@@ -115,273 +83,64 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
     isUpdating,
   } = props;
   const open = mode !== null;
-  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
-  const [slotDate, setSlotDate] = useState("");
-  const [slotStartTime, setSlotStartTime] = useState("06:00");
-  const [slotEndTime, setSlotEndTime] = useState("07:00");
-  const [slotPrice, setSlotPrice] = useState(100000);
-  const [isAddTimeSlotOpen, setIsAddTimeSlotOpen] = useState(false);
-  const [pendingTimeSlotConfigs, setPendingTimeSlotConfigs] = useState<CourtTimeSlotConfigDraft[]>([]);
-  const [addSlotError, setAddSlotError] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
-  const maxAllowedDate = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 30);
-    return date.toISOString().slice(0, 10);
-  }, []);
 
-  const defaultValues = useMemo<CourtFormValue>(
-    () => ({
+  const [pendingTimeSlotConfigs, setPendingTimeSlotConfigs] = useState<CourtTimeSlotConfigDraft[]>(
+    [],
+  );
+  const [addSlotError, setAddSlotError] = useState<string | null>(null);
+  const [overlapWarning, setOverlapWarning] = useState<boolean>(false);
+
+  const form = useForm({
+    defaultValues: {
       venueId: court?.venueId ?? "",
       sportId: court?.sportId ?? "",
       name: court?.name ?? "",
       pricePerHour: court?.pricePerHour ?? 100000,
       imageUrl: court?.imageUrl ?? "",
-      slotMode: "none",
-      manualDate: "",
+      templateNames: court?.templateNames ?? [],
+      manualDate: getLocalDateString(),
       manualStartTime: "06:00",
       manualEndTime: "07:00",
       manualPrice: court?.pricePerHour ?? 100000,
-      templateStartDate: "",
-      templateEndDate: "",
-      templateWeekdays: [],
-      templateStartTime: "06:00",
-      templateEndTime: "07:00",
-      templatePrice: court?.pricePerHour ?? 100000,
-      createTemplate: true,
-    }),
-    [court],
-  );
-
-  const form = useForm({
-    defaultValues,
+    } as CourtFormValue,
     onSubmit: ({ value }) => {
+      if (overlapWarning) return;
       if (mode === "create") onCreate(value, pendingTimeSlotConfigs);
       if (mode === "edit") onEdit(value, pendingTimeSlotConfigs);
     },
   });
 
-  const buildTimeSlotConfig = (values: CourtFormValue): CourtTimeSlotConfigDraft | undefined => {
-    if (
-      values.slotMode === "manual" &&
-      values.manualDate &&
-      values.manualStartTime &&
-      values.manualEndTime &&
-      values.manualPrice !== undefined
-    ) {
-      return {
-        manualSlots: [
-          {
-            date: values.manualDate,
-            startTime: values.manualStartTime,
-            endTime: values.manualEndTime,
-            price: values.manualPrice,
-          },
-        ],
-      };
-    }
-    if (
-      values.slotMode === "template" &&
-      values.templateStartDate &&
-      values.templateEndDate &&
-      values.templateWeekdays?.length &&
-      values.templateStartTime &&
-      values.templateEndTime &&
-      values.templatePrice !== undefined
-    ) {
-      return {
-        templateGeneration: {
-          startDate: values.templateStartDate,
-          endDate: values.templateEndDate,
-          weekdays: values.templateWeekdays,
-          startTime: values.templateStartTime,
-          endTime: values.templateEndTime,
-          price: values.templatePrice,
-          createTemplate: values.createTemplate ?? true,
-        },
-      };
-    }
-    return undefined;
-  };
-
-  const toMinutes = (time: string) => {
-    const [hour, minute] = time.split(":").map(Number);
-    return hour * 60 + minute;
-  };
-
-  const isTimeRangeOverlap = (
-    startA: string,
-    endA: string,
-    startB: string,
-    endB: string,
-  ): boolean => {
-    const startAMin = toMinutes(startA);
-    const endAMin = toMinutes(endA);
-    const startBMin = toMinutes(startB);
-    const endBMin = toMinutes(endB);
-    return startAMin < endBMin && startBMin < endAMin;
-  };
-
-  const getIsoWeekday = (dateString: string) => {
-    const date = new Date(dateString);
-    const weekday = date.getDay();
-    return weekday === 0 ? 7 : weekday;
-  };
-
-  const doesDateRangeOverlap = (
-    startA: string,
-    endA: string,
-    startB: string,
-    endB: string,
-  ): boolean => startA <= endB && startB <= endA;
-
-  const validateTimeSlotConfig = (config: CourtTimeSlotConfigDraft): string | null => {
-    if (config.manualSlots?.length) {
-      const [manualSlot] = config.manualSlots;
-      if (!manualSlot) return "Manual slot data is invalid.";
-      if (manualSlot.date < today || manualSlot.date > maxAllowedDate) {
-        return "Manual slot date must be within 30 days from today.";
-      }
-      if (toMinutes(manualSlot.startTime) >= toMinutes(manualSlot.endTime)) {
-        return "Manual slot end time must be after start time.";
-      }
-      const overlapWithExisting = courtTimeSlots.some(
-        (item) =>
-          item.date === manualSlot.date &&
-          isTimeRangeOverlap(item.startTime, item.endTime, manualSlot.startTime, manualSlot.endTime),
-      );
-      if (overlapWithExisting) {
-        return "Manual slot overlaps an existing time slot.";
-      }
-      const overlapWithPending = pendingTimeSlotConfigs.some((item) => {
-        if (item.manualSlots?.length) {
-          const [pendingManual] = item.manualSlots;
-          if (!pendingManual) return false;
-          return (
-            pendingManual.date === manualSlot.date &&
-            isTimeRangeOverlap(
-              pendingManual.startTime,
-              pendingManual.endTime,
-              manualSlot.startTime,
-              manualSlot.endTime,
-            )
-          );
-        }
-        if (item.templateGeneration) {
-          const template = item.templateGeneration;
-          const weekday = getIsoWeekday(manualSlot.date);
-          return (
-            manualSlot.date >= template.startDate &&
-            manualSlot.date <= template.endDate &&
-            template.weekdays.includes(weekday) &&
-            isTimeRangeOverlap(
-              template.startTime,
-              template.endTime,
-              manualSlot.startTime,
-              manualSlot.endTime,
-            )
-          );
-        }
-        return false;
-      });
-      if (overlapWithPending) {
-        return "Manual slot overlaps with a pending slot.";
-      }
-      return null;
-    }
-
-    if (config.templateGeneration) {
-      const template = config.templateGeneration;
-      if (template.startDate < today || template.endDate > maxAllowedDate) {
-        return "Template date range must be within 30 days from today.";
-      }
-      if (template.startDate > template.endDate) {
-        return "Template end date must be the same or after start date.";
-      }
-      if (toMinutes(template.startTime) >= toMinutes(template.endTime)) {
-        return "Template end time must be after start time.";
-      }
-
-      const overlapWithExisting = courtTimeSlots.some((item) => {
-        const weekday = getIsoWeekday(item.date);
-        return (
-          item.date >= template.startDate &&
-          item.date <= template.endDate &&
-          template.weekdays.includes(weekday) &&
-          isTimeRangeOverlap(item.startTime, item.endTime, template.startTime, template.endTime)
-        );
-      });
-      if (overlapWithExisting) {
-        return "Template overlaps an existing time slot.";
-      }
-
-      const overlapWithPending = pendingTimeSlotConfigs.some((item) => {
-        if (item.manualSlots?.length) {
-          const [pendingManual] = item.manualSlots;
-          if (!pendingManual) return false;
-          const weekday = getIsoWeekday(pendingManual.date);
-          return (
-            pendingManual.date >= template.startDate &&
-            pendingManual.date <= template.endDate &&
-            template.weekdays.includes(weekday) &&
-            isTimeRangeOverlap(
-              pendingManual.startTime,
-              pendingManual.endTime,
-              template.startTime,
-              template.endTime,
-            )
-          );
-        }
-        if (item.templateGeneration) {
-          const pendingTemplate = item.templateGeneration;
-          const hasWeekdayIntersection = pendingTemplate.weekdays.some((day) =>
-            template.weekdays.includes(day),
-          );
-          return (
-            hasWeekdayIntersection &&
-            doesDateRangeOverlap(
-              template.startDate,
-              template.endDate,
-              pendingTemplate.startDate,
-              pendingTemplate.endDate,
-            ) &&
-            isTimeRangeOverlap(
-              template.startTime,
-              template.endTime,
-              pendingTemplate.startTime,
-              pendingTemplate.endTime,
-            )
-          );
-        }
-        return false;
-      });
-      if (overlapWithPending) {
-        return "Template overlaps with a pending slot.";
-      }
-    }
-    return null;
-  };
-
   useEffect(() => {
     if (!open) return;
-    form.reset(defaultValues);
-    setEditingSlotId(null);
-    setIsAddTimeSlotOpen(false);
+    form.reset({
+      venueId: court?.venueId ?? "",
+      sportId: court?.sportId ?? "",
+      name: court?.name ?? "",
+      pricePerHour: court?.pricePerHour ?? 100000,
+      imageUrl: court?.imageUrl ?? "",
+      templateNames: court?.templateNames ?? [],
+      manualDate: getLocalDateString(),
+      manualStartTime: "06:00",
+      manualEndTime: "07:00",
+      manualPrice: court?.pricePerHour ?? 100000,
+    });
     setPendingTimeSlotConfigs([]);
     setAddSlotError(null);
-  }, [defaultValues, form, open]);
+    setOverlapWarning(false);
+  }, [court, form, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Create court" : "Edit court"}</DialogTitle>
-          <DialogDescription>Update court details, pricing and relationships.</DialogDescription>
+          <DialogDescription>Update court details, pricing and time slot setup.</DialogDescription>
         </DialogHeader>
         <form
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            if (overlapWarning) return;
             form.handleSubmit();
           }}
         >
@@ -391,7 +150,13 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
               children={(field) => (
                 <Field>
                   <FieldLabel htmlFor={field.name}>Venue</FieldLabel>
-                  <Select value={field.state.value} onValueChange={field.handleChange}>
+                  <Select 
+                    value={field.state.value} 
+                    onValueChange={(val) => {
+                      field.handleChange(val);
+                      form.setFieldValue("templateNames", []);
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select venue" />
                     </SelectTrigger>
@@ -442,11 +207,15 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
               name="pricePerHour"
               children={(field) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>Price per hour</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>Price per hour (Default)</FieldLabel>
                   <Input
                     type="number"
                     value={field.state.value}
-                    onChange={(e) => field.handleChange(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      field.handleChange(val);
+                      form.setFieldValue("manualPrice", val);
+                    }}
                   />
                 </Field>
               )}
@@ -463,367 +232,151 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
                 </Field>
               )}
             />
-            <div className="space-y-2 rounded-lg border p-3 md:col-span-2">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">Current time slots</div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setIsAddTimeSlotOpen((prev) => !prev)}
-                >
-                  {isAddTimeSlotOpen ? "Hide add form" : "Add time slot"}
-                </Button>
-              </div>
-              {isAddTimeSlotOpen ? (
-                <div className="grid gap-4 rounded-md border border-dashed p-3 md:grid-cols-2">
+
+            <div className="md:col-span-2 mt-4 space-y-4 rounded-xl border p-4 bg-muted/20">
+              <div className="font-semibold text-sm">Time Slot Setup</div>
+              
+              <form.Subscribe selector={(state) => ({ venueId: state.values.venueId, templateNames: state.values.templateNames })}>
+                {({ venueId, templateNames }) => (
+                  <VenueTemplateSelector 
+                    form={form as any} 
+                    venueId={venueId} 
+                    templateNames={templateNames} 
+                    onOverlapWarning={setOverlapWarning}
+                  />
+                )}
+              </form.Subscribe>
+
+              <div className="border-t pt-4 mt-4">
+                <div className="text-sm font-semibold mb-3">Draft Manual Time Slots</div>
+                <div className="grid gap-3 rounded-xl border border-dashed bg-background p-4 md:grid-cols-2">
                   <form.Field
-                    name="slotMode"
+                    name="manualDate"
                     children={(field) => (
-                      <Field className="md:col-span-2">
-                        <FieldLabel htmlFor={field.name}>Time-slot setup</FieldLabel>
-                        <Select
-                          value={field.state.value ?? "none"}
-                          onValueChange={(value) =>
-                            field.handleChange(value as CourtFormValue["slotMode"])
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select setup mode" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No setup</SelectItem>
-                            <SelectItem value="manual">Create one manual slot</SelectItem>
-                            <SelectItem value="template">Generate by template</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Date</FieldLabel>
+                        <Input
+                          type="date"
+                          min={getLocalDateString()}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
                       </Field>
                     )}
                   />
-                  <form.Subscribe selector={(state) => state.values.slotMode}>
-                    {(slotMode) =>
-                      slotMode === "manual" ? (
-                        <>
-                          <form.Field
-                            name="manualDate"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Date</FieldLabel>
-                                <Input
-                                  type="date"
-                                  min={today}
-                                  max={maxAllowedDate}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="manualPrice"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Slot price</FieldLabel>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  value={field.state.value ?? 0}
-                                  onChange={(e) => field.handleChange(Number(e.target.value))}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="manualStartTime"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Start time</FieldLabel>
-                                <Input
-                                  type="time"
-                                  step={60}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="manualEndTime"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>End time</FieldLabel>
-                                <Input
-                                  type="time"
-                                  step={60}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                        </>
-                      ) : slotMode === "template" ? (
-                        <>
-                          <form.Field
-                            name="templateStartDate"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Start date</FieldLabel>
-                                <Input
-                                  type="date"
-                                  min={today}
-                                  max={maxAllowedDate}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="templateEndDate"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>End date</FieldLabel>
-                                <Input
-                                  type="date"
-                                  min={today}
-                                  max={maxAllowedDate}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="templateWeekdays"
-                            children={(field) => (
-                              <Field className="md:col-span-2">
-                                <FieldLabel htmlFor={field.name}>Weekdays</FieldLabel>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => {
-                                    const selected = (field.state.value ?? []).includes(weekday);
-                                    return (
-                                      <Button
-                                        key={weekday}
-                                        type="button"
-                                        variant={selected ? "default" : "outline"}
-                                        className="justify-start"
-                                        onClick={() => {
-                                          const current = field.state.value ?? [];
-                                          field.handleChange(
-                                            selected
-                                              ? current.filter((item) => item !== weekday)
-                                              : [...current, weekday],
-                                          );
-                                        }}
-                                      >
-                                        {TIME_SLOT_WEEKDAY_LABEL_EN[weekday]}
-                                      </Button>
-                                    );
-                                  })}
-                                </div>
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="templatePrice"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Template price</FieldLabel>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  value={field.state.value ?? 0}
-                                  onChange={(e) => field.handleChange(Number(e.target.value))}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="templateStartTime"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>Start time</FieldLabel>
-                                <Input
-                                  type="time"
-                                  step={60}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                          <form.Field
-                            name="templateEndTime"
-                            children={(field) => (
-                              <Field>
-                                <FieldLabel htmlFor={field.name}>End time</FieldLabel>
-                                <Input
-                                  type="time"
-                                  step={60}
-                                  value={field.state.value ?? ""}
-                                  onChange={(e) => field.handleChange(e.target.value)}
-                                />
-                              </Field>
-                            )}
-                          />
-                        </>
-                      ) : null
-                    }
-                  </form.Subscribe>
-                  <div className="md:col-span-2">
+                  <form.Field
+                    name="manualPrice"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Price</FieldLabel>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(Number(e.target.value))}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <form.Field
+                    name="manualStartTime"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Start Time</FieldLabel>
+                        <Input
+                          type="time"
+                          step={60}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <form.Field
+                    name="manualEndTime"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>End Time</FieldLabel>
+                        <Input
+                          type="time"
+                          step={60}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  />
+
+                  <div className="md:col-span-2 pt-2">
                     <Button
                       type="button"
-                      size="sm"
+                      variant="secondary"
                       onClick={() => {
-                        const config = buildTimeSlotConfig(form.state.values);
-                        if (!config) {
-                          setAddSlotError("Please complete all required fields before saving.");
+                        const values = form.store.state.values;
+                        if (!values.manualDate || !values.manualStartTime || !values.manualEndTime) {
+                          setAddSlotError("Please fill in all time slot fields.");
                           return;
                         }
-                        const validationError = validateTimeSlotConfig(config);
-                        if (validationError) {
-                          setAddSlotError(validationError);
+                        if (values.manualStartTime >= values.manualEndTime) {
+                          setAddSlotError("Start time must be before end time.");
                           return;
                         }
+                        const config: CourtTimeSlotConfigDraft = {
+                          manualSlots: [
+                            {
+                              date: values.manualDate,
+                              startTime: values.manualStartTime,
+                              endTime: values.manualEndTime,
+                              price: values.manualPrice ?? values.pricePerHour,
+                            },
+                          ],
+                        };
                         setAddSlotError(null);
                         setPendingTimeSlotConfigs((prev) => [...prev, config]);
-                        form.setFieldValue("slotMode", "none");
                       }}
                     >
-                      Save time slot
+                      Add to pending
                     </Button>
                     {addSlotError ? (
                       <p className="text-destructive mt-2 text-sm">{addSlotError}</p>
                     ) : null}
-                    <p className="text-muted-foreground mt-2 text-xs">
-                      You can only add time slots from today up to 30 days ahead.
+                  </div>
+                </div>
+
+                {pendingTimeSlotConfigs.length > 0 ? (
+                  <div className="space-y-2 rounded-md border border-dashed p-3 mt-4 bg-background">
+                    <div className="text-sm font-medium">Pending manual time slots</div>
+                    <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                      {pendingTimeSlotConfigs.map((config, index) => (
+                        <div key={`pending-${index}`} className="flex items-center justify-between text-sm bg-muted/20 p-2 rounded-md">
+                          <div className="text-muted-foreground">
+                            {config.manualSlots && 
+                              `${config.manualSlots[0]?.date} | ${config.manualSlots[0]?.startTime} - ${config.manualSlots[0]?.endTime} | ${config.manualSlots[0]?.price.toLocaleString()} VND`}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-destructive h-8"
+                            size="sm"
+                            onClick={() =>
+                              setPendingTimeSlotConfigs((prev) => prev.filter((_, item) => item !== index))
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground pt-1">
+                      These slots will be generated after the court is created.
                     </p>
                   </div>
-                </div>
-              ) : null}
-              {pendingTimeSlotConfigs.length > 0 ? (
-                <div className="space-y-2 rounded-md border border-dashed p-2">
-                  <div className="text-sm font-medium">Pending time slots</div>
-                  {pendingTimeSlotConfigs.map((config, index) => (
-                    <div key={`pending-${index}`} className="flex items-center justify-between text-sm">
-                      <div className="text-muted-foreground">
-                        {config.manualSlots
-                          ? `${config.manualSlots[0]?.date} ${config.manualSlots[0]?.startTime} - ${config.manualSlots[0]?.endTime}`
-                          : `Template ${config.templateGeneration?.startDate} -> ${config.templateGeneration?.endDate} | ${config.templateGeneration?.startTime} - ${config.templateGeneration?.endTime}`}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPendingTimeSlotConfigs((prev) => prev.filter((_, item) => item !== index))
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                {isTimeSlotsLoading ? (
-                  <div className="text-muted-foreground text-sm">Loading time slots...</div>
-                ) : courtTimeSlots.length === 0 ? (
-                  <div className="text-muted-foreground text-sm">
-                    No time slots available for this court.
-                  </div>
-                ) : (
-                  courtTimeSlots.map((slot) => (
-                    <div key={slot.id} className="rounded-md border p-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="font-medium">
-                            {slot.date} {slot.startTime} - {slot.endTime}
-                          </div>
-                          <div className="text-muted-foreground">
-                            {slot.price.toLocaleString()} VND - {slot.status}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingSlotId(slot.id);
-                            setSlotDate(slot.date);
-                            setSlotStartTime(slot.startTime);
-                            setSlotEndTime(slot.endTime);
-                            setSlotPrice(slot.price);
-                          }}
-                        >
-                          Edit slot
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                ) : null}
               </div>
             </div>
-            {editingSlotId ? (
-              <div className="grid gap-2 rounded-lg border border-dashed p-3 md:col-span-2">
-                <div className="text-sm font-medium">Edit time slot</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="date"
-                    value={slotDate}
-                    onChange={(e) => setSlotDate(e.target.value)}
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    value={slotPrice}
-                    onChange={(e) => setSlotPrice(Number(e.target.value))}
-                  />
-                  <Input
-                    type="time"
-                    step={60}
-                    value={slotStartTime}
-                    onChange={(e) => setSlotStartTime(e.target.value)}
-                  />
-                  <Input
-                    type="time"
-                    step={60}
-                    value={slotEndTime}
-                    onChange={(e) => setSlotEndTime(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      onUpdateTimeSlot(editingSlotId, {
-                        courtId: court?.id ?? "",
-                        date: slotDate,
-                        startTime: slotStartTime,
-                        endTime: slotEndTime,
-                        price: slotPrice,
-                      });
-                      setEditingSlotId(null);
-                    }}
-                    disabled={isSavingTimeSlot}
-                  >
-                    Save slot
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingSlotId(null)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : null}
           </FieldGroup>
           <DialogFooter className="mt-4">
-            <Button type="submit" disabled={isCreating || isUpdating}>
+            <Button type="submit" disabled={isCreating || isUpdating || overlapWarning}>
               {isCreating || isUpdating
                 ? "Saving..."
                 : mode === "create"
@@ -834,5 +387,132 @@ export function CourtFormDialog(props: CourtFormDialogProps) {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function VenueTemplateSelector({ form, venueId, templateNames, onOverlapWarning }: { form: any, venueId: string, templateNames: string[], onOverlapWarning: (warning: boolean) => void }) {
+  const { data: availableGroups = [], isLoading: isLoadingTemplates } = useQuery({
+    queryKey: ["template-group-names", venueId],
+    queryFn: () => TimeSlotTemplateService.getGroupNames(venueId),
+    enabled: !!venueId,
+  });
+
+  return (
+    <div className="space-y-4">
+      <form.Field
+        name="templateNames"
+        children={(field: any) => (
+          <Field>
+            <FieldLabel htmlFor={field.name}>Time Slot Template Groups</FieldLabel>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {isLoadingTemplates ? (
+                <div className="text-sm text-muted-foreground">Loading templates...</div>
+              ) : availableGroups.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No templates available for this venue.</div>
+              ) : (
+                availableGroups.map((name) => {
+                  const checked = field.state.value.includes(name);
+                  return (
+                    <div key={name} className="flex items-center space-x-2 p-2 border rounded-md bg-background">
+                      <Checkbox 
+                        id={`template-${name}`}
+                        checked={checked}
+                        onCheckedChange={(isChecked) => {
+                          if (isChecked) {
+                            field.handleChange([...field.state.value, name]);
+                          } else {
+                            field.handleChange(field.state.value.filter((n: string) => n !== name));
+                          }
+                        }}
+                      />
+                      <label 
+                        htmlFor={`template-${name}`}
+                        className="text-sm font-medium leading-none cursor-pointer flex-1"
+                      >
+                        {name}
+                      </label>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <p className="text-muted-foreground text-xs mt-2">
+              Select one or more templates to automatically generate ongoing time slots for this court.
+            </p>
+          </Field>
+        )}
+      />
+
+      {templateNames && templateNames.length > 0 && (
+        <TemplateDetailsPreview venueId={venueId} templateNames={templateNames} onOverlapWarning={onOverlapWarning} />
+      )}
+    </div>
+  );
+}
+
+function TemplateDetailsPreview({ venueId, templateNames, onOverlapWarning }: { venueId: string, templateNames: string[], onOverlapWarning: (warning: boolean) => void }) {
+  const templatesQuery = useTimeSlotTemplates(
+    { current: 1, limit: 1000, venueId }
+  );
+
+  const items = templatesQuery.data?.items ?? [];
+  const selectedItems = items.filter(item => templateNames.includes(item.name));
+
+  // Check overlap
+  let hasOverlap = false;
+  const byWeekday = new Map<number, typeof selectedItems>();
+  for (const t of selectedItems) {
+    if (!byWeekday.has(t.weekday)) byWeekday.set(t.weekday, []);
+    byWeekday.get(t.weekday)!.push(t);
+  }
+
+  for (const [weekday, dayTemplates] of byWeekday) {
+    for (let i = 0; i < dayTemplates.length; i++) {
+      for (let j = i + 1; j < dayTemplates.length; j++) {
+        const t1 = dayTemplates[i];
+        const t2 = dayTemplates[j];
+        if (t1.startTime < t2.endTime && t1.endTime > t2.startTime) {
+          hasOverlap = true;
+          break;
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    onOverlapWarning(hasOverlap);
+  }, [hasOverlap, onOverlapWarning]);
+
+  if (templatesQuery.isLoading) {
+    return <div className="text-sm text-muted-foreground">Loading template details...</div>;
+  }
+
+  if (selectedItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border bg-background p-4 mt-2">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-semibold">Template Rules Preview</div>
+        {hasOverlap && (
+          <div className="text-xs font-semibold text-destructive px-2 py-1 bg-destructive/10 rounded-md">
+            Warning: Overlapping Templates Detected
+          </div>
+        )}
+      </div>
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+        {selectedItems.map((item) => (
+          <div key={item.id} className="flex justify-between items-center text-sm p-2 bg-muted/20 rounded-md">
+            <div>
+              <span className="font-medium mr-2">{TIME_SLOT_WEEKDAY_LABEL_EN[item.weekday]}</span>
+              <span className="text-muted-foreground">{item.startTime} - {item.endTime}</span>
+              <span className="ml-2 text-xs text-muted-foreground">({item.name})</span>
+            </div>
+            <div className="font-semibold">{item.price.toLocaleString()} VND</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

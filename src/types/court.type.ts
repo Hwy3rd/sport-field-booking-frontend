@@ -20,6 +20,8 @@ export interface Court {
 
   imageUrl?: string;
 
+  templateNames?: string[] | null;
+
   status: CourtStatus;
 
   createdAt: ISODateTimeString;
@@ -34,30 +36,21 @@ export interface GetAllCourtsRequest extends FilterQuery {
   maxPrice?: number;
 }
 
+export interface CreateManualSlotRequest {
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: number;
+}
+
 export interface CreateCourtRequest {
   venueId: UUID;
   sportId: UUID;
   name: string;
   pricePerHour: number;
   imageUrl?: string | null;
-  timeSlotConfig?: {
-    manualSlots?: Array<{
-      date: string;
-      startTime: string;
-      endTime: string;
-      price: number;
-      status?: TimeSlotStatus;
-    }>;
-    templateGeneration?: {
-      startDate: string;
-      endDate: string;
-      weekdays: TimeSlotWeekday[];
-      startTime: string;
-      endTime: string;
-      price: number;
-      createTemplate?: boolean;
-    };
-  };
+  templateNames?: string[];
+  manualTimeSlots?: CreateManualSlotRequest[];
 }
 
 export interface UpdateCourtRequest extends Partial<CreateCourtRequest> {

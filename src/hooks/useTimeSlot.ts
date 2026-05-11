@@ -81,6 +81,32 @@ export const useDeleteTimeSlot = () => {
   });
 };
 
+export const useLockTimeSlot = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => TimeSlotService.lockTimeSlot(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: timeSlotKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to reserve time slot"));
+    },
+  });
+};
+
+export const useUnlockTimeSlot = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => TimeSlotService.unlockTimeSlot(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: timeSlotKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to unlock time slot"));
+    },
+  });
+};
+
 export const useTimeSlotTemplates = (filter: GetAllTimeSlotTemplatesRequest = {}) =>
   useQuery({
     queryKey: timeSlotTemplateKeys.list(filter),
