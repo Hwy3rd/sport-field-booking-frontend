@@ -96,7 +96,7 @@ export default function OwnerTimeSlotTemplatesPage() {
     [ownerCourts],
   );
   const rows = useMemo(
-    () => (templatesQuery.data?.items ?? []).filter((tpl) => ownerCourtIds.has(tpl.courtId)),
+    () => (templatesQuery.data?.items ?? []).filter((tpl) => tpl.courtId && ownerCourtIds.has(tpl.courtId)),
     [templatesQuery.data?.items, ownerCourtIds],
   );
 
@@ -113,7 +113,7 @@ export default function OwnerTimeSlotTemplatesPage() {
   });
 
   const submit = (values: FormValue) => {
-    const payload = {
+    const payload: any = {
       courtId: values.courtId,
       weekday: values.weekday as TimeSlotWeekday,
       startTime: values.startTime,
@@ -182,7 +182,7 @@ export default function OwnerTimeSlotTemplatesPage() {
                 <TableRow key={template.id}>
                   <TableCell>
                     {ownerCourts.find((court) => court.id === template.courtId)?.name ??
-                      template.courtId.slice(0, 8)}
+                      template.courtId?.slice(0, 8)}
                   </TableCell>
                   <TableCell>{TIME_SLOT_WEEKDAY_LABEL_VI[template.weekday] ?? template.weekday}</TableCell>
                   <TableCell>
@@ -198,7 +198,7 @@ export default function OwnerTimeSlotTemplatesPage() {
                       onClick={() => {
                         setEditingId(template.id);
                         form.reset({
-                          courtId: template.courtId,
+                          courtId: template.courtId ?? "",
                           weekday: template.weekday,
                           startTime: template.startTime,
                           endTime: template.endTime,

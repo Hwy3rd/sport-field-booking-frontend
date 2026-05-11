@@ -58,12 +58,12 @@ interface OwnerVenuesDialogsProps {
   setIsCreateOpen: (open: boolean) => void;
   form: UseFormReturn<CreateVenueForm>;
   submit: (values: CreateVenueForm) => void;
-  createVenueMutation: UseMutationResult<unknown, Error, unknown, unknown>;
+  createVenueMutation: { isPending: boolean };
   editingVenue: Venue | null;
   setEditingVenue: (value: Venue | null) => void;
   editForm: UseFormReturn<CreateVenueForm>;
   submitEdit: (values: CreateVenueForm) => void;
-  updateVenueMutation: UseMutationResult<unknown, Error, unknown, unknown>;
+  updateVenueMutation: { isPending: boolean };
   detailVenueId: string | null;
   setDetailVenueId: (value: string | null) => void;
   detailVenueQuery: {

@@ -243,7 +243,7 @@ export default function OwnerCourtsPage() {
     if (!config) return;
     updateCourtMutation.mutate({
       courtId: editingCourt.id,
-      payload: { timeSlotConfig: config },
+      payload: { timeSlotConfig: config } as any,
     });
   };
 

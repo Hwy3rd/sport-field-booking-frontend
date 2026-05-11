@@ -10,7 +10,7 @@ const fontSans = Manrope({
 });
 
 const fontHeading = Sora({
-  subsets: ["latin", "vietnamese"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-sora",
   display: "swap",
 });
