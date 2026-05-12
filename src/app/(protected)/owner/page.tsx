@@ -20,7 +20,7 @@ export default function OwnerDashboardPage() {
   const venuesQuery = useVenues({
     current: 1,
     limit: 50,
-    filter: { ownerId },
+    ownerId,
   });
   const courtsQuery = useCourts({ current: 1, limit: 200 });
   const bookingHistoryQuery = useBookingHistory({ current: 1, limit: 20 });

@@ -12,7 +12,7 @@ import { useVenues } from "@/hooks/useVenue";
 
 export default function AdminDashboardPage() {
   const usersQuery = useUsersList({ current: 1, limit: 10 });
-  const venuesQuery = useVenues({ current: 1, limit: 10, filter: {} });
+  const venuesQuery = useVenues({ current: 1, limit: 10 });
   const courtsQuery = useCourts({ current: 1, limit: 10 });
   const bookingsQuery = useAdminBookingsList({ current: 1, limit: 10, filter: {} });
   const sportsQuery = useSportsList({ current: 1, limit: 50 });

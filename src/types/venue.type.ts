@@ -54,6 +54,8 @@ export interface SearchVenuesRequest extends FilterBody<VenueFilter> {}
 export interface GetAllVenuesRequest extends FilterQuery {
   name?: string;
   address?: string;
+  ownerId?: string;
+  status?: string;
 }
 
 export interface CreateVenueRequest {

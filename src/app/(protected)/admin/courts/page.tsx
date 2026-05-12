@@ -100,7 +100,7 @@ export default function AdminCourtsPage() {
   const updateCourtMutation = useUpdateCourt();
   const createTimeSlotMutation = useCreateTimeSlot();
   const updateTimeSlotMutation = useUpdateTimeSlot();
-  const venuesQuery = useVenues({ current: 1, limit: 100, filter: {} });
+  const venuesQuery = useVenues({ current: 1, limit: 100 });
   const sportsQuery = useSportsList({ current: 1, limit: 100 });
   const courtsQuery = useCourts({
     current,

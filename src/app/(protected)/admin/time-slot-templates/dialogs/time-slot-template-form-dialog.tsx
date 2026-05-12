@@ -58,7 +58,7 @@ export function TimeSlotTemplateFormDialog(props: TimeSlotTemplateFormDialogProp
   const { mode, template, onOpenChange, onCreate, onEdit, isCreating, isUpdating } = props;
   const open = mode !== null;
 
-  const venuesQuery = useVenues({ current: 1, limit: 100, filter: {} });
+  const venuesQuery = useVenues({ current: 1, limit: 100 });
   const venues = venuesQuery.data?.items ?? [];
 
   const form = useForm({

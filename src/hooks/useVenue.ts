@@ -8,14 +8,14 @@ import { VenueService } from "@/services/venue.service";
 import { venueKeys } from "@/lib/query-keys/venue.keys";
 import type {
   CreateVenueRequest,
-  SearchVenuesRequest,
+  GetAllVenuesRequest,
   UpdateVenueRequest,
 } from "@/types/venue.type";
 
-export const useVenuesList = (filter: SearchVenuesRequest = {}) =>
+export const useVenuesList = (filter: GetAllVenuesRequest = {}) =>
   useQuery({
     queryKey: venueKeys.list(filter),
-    queryFn: () => VenueService.searchVenues(filter),
+    queryFn: () => VenueService.getAllVenues(filter),
     staleTime: 60_000,
   });
 

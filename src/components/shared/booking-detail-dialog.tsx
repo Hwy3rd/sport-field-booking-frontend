@@ -5,14 +5,20 @@ import { Clock, MapPin, Tag } from "lucide-react";
 
 import type { Booking } from "@/types/booking.type";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { useCreatePaymentUrl } from "@/hooks/usePayment";
+import { toast } from "sonner";
+import { Loader2, CreditCard } from "lucide-react";
+import { BOOKING_STATUS } from "@/lib/constants/booking.constant";
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -21,7 +27,26 @@ interface BookingDetailDialogProps {
 }
 
 export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDetailDialogProps) {
+  const createPaymentUrlMutation = useCreatePaymentUrl();
+
   if (!booking) return null;
+
+  const handlePayNow = async () => {
+    try {
+      const { paymentUrl } = await createPaymentUrlMutation.mutateAsync({
+        bookingId: booking.id,
+      });
+      
+      if (paymentUrl) {
+        toast.info("Redirecting to payment gateway...");
+        window.location.href = paymentUrl;
+      } else {
+        toast.error("Could not generate payment link");
+      }
+    } catch (error) {
+      // handled in hook onError but standard check
+    }
+  };
 
   const getStatusColor = (status: string) => {
     const statusColorMap: Record<string, string> = {
@@ -144,6 +169,26 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDeta
             </div>
           </div>
         </div>
+
+        {booking.status === BOOKING_STATUS.PENDING && (
+          <>
+            <Separator className="my-2" />
+            <DialogFooter>
+              <Button 
+                onClick={handlePayNow} 
+                disabled={createPaymentUrlMutation.isPending}
+                className="w-full md:w-auto gap-2"
+              >
+                {createPaymentUrlMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4" />
+                )}
+                Pay Now
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

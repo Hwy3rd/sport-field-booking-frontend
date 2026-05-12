@@ -13,9 +13,11 @@ import { CourtTimeSlotPicker, CourtVenueLink } from "@/components/shared/court-b
 import { getLocalDateString } from "@/lib/helper/date";
 import type { Court } from "@/types/court.type";
 import type { TimeSlot } from "@/types/time-slot.type";
-import { useTimeSlots } from "@/hooks/useTimeSlot";
+import { useTimeSlots, useLockTimeSlot } from "@/hooks/useTimeSlot";
 import { useCartStore } from "@/stores/cart.store";
 import { ROUTES } from "@/lib/constants/routes.constant";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
 interface CourtDetailClientProps {
   court: Court;
@@ -35,30 +37,56 @@ export function CourtDetailClient({ court }: CourtDetailClientProps) {
 
   const { saveCourtBooking } = useCartStore();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const lockTimeSlotMutation = useLockTimeSlot();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAddToCart = () => {
-    if (allSelectedSlots.length === 0) return;
-    
-    Object.entries(selectedSlotsByDate).forEach(([date, slots]) => {
-      if (slots.length > 0) {
-        saveCourtBooking(court, date, slots);
-      }
-    });
+  const executeLockAndSave = async () => {
+    if (!isAuthenticated) {
+      toast.error("Please login first to book slots");
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return false;
+    }
 
-    toast.success("Added to cart");
-    setSelectedSlotsByDate({}); // Clear after adding to cart
+    setIsSubmitting(true);
+    try {
+      // Lock all selected time slots first (API Lock)
+      await Promise.all(
+        allSelectedSlots.map((slot) => lockTimeSlotMutation.mutateAsync(slot.id))
+      );
+      
+      // Save to local cart store
+      Object.entries(selectedSlotsByDate).forEach(([date, slots]) => {
+        if (slots.length > 0) {
+          saveCourtBooking(court, date, slots);
+        }
+      });
+      return true;
+    } catch (error) {
+      toast.error("Failed to reserve some time slots. They might have been taken.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleBookNow = () => {
+  const handleAddToCart = async () => {
     if (allSelectedSlots.length === 0) return;
     
-    Object.entries(selectedSlotsByDate).forEach(([date, slots]) => {
-      if (slots.length > 0) {
-        saveCourtBooking(court, date, slots);
-      }
-    });
+    const success = await executeLockAndSave();
+    if (success) {
+      toast.success("Added to cart with reserved slots");
+      setSelectedSlotsByDate({}); // Clear after adding to cart
+    }
+  };
 
-    router.push(ROUTES.CHECKOUT);
+  const handleBookNow = async () => {
+    if (allSelectedSlots.length === 0) return;
+    
+    const success = await executeLockAndSave();
+    if (success) {
+      router.push(ROUTES.CHECKOUT);
+    }
   };
 
   return (
@@ -147,15 +175,21 @@ export function CourtDetailClient({ court }: CourtDetailClientProps) {
                   className="w-full" 
                   variant="secondary" 
                   onClick={handleAddToCart}
-                  disabled={allSelectedSlots.length === 0}
+                  disabled={allSelectedSlots.length === 0 || isSubmitting}
                 >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Add to cart
                 </Button>
                 <Button 
                   className="w-full" 
                   onClick={handleBookNow}
-                  disabled={allSelectedSlots.length === 0}
+                  disabled={allSelectedSlots.length === 0 || isSubmitting}
                 >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Book now
                 </Button>
               </div>

@@ -74,7 +74,7 @@ export default function OwnerTimeSlotTemplatesPage() {
   const venuesQuery = useVenues({
     current: 1,
     limit: 200,
-    filter: { ownerId },
+    ownerId,
   });
   const courtsQuery = useCourts({ current: 1, limit: 500 });
   const templatesQuery = useTimeSlotTemplates({ current: page, limit });

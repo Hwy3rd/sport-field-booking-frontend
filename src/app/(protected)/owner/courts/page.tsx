@@ -85,7 +85,7 @@ export default function OwnerCourtsPage() {
   const venuesQuery = useVenues({
     current: 1,
     limit: 100,
-    filter: { ownerId },
+    ownerId,
   });
   const sportsQuery = useSportsList({ current: 1, limit: 100 });
   const courtsQuery = useCourts({

@@ -10,10 +10,53 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCourts } from "@/hooks/useCourt";
 import { useVenues } from "@/hooks/useVenue";
 import { ROUTES } from "@/lib/constants/routes.constant";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription 
+} from "@/components/ui/dialog";
+import { useBookingDetail } from "@/hooks/useBooking";
+import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import { BOOKING_STATUS } from "@/lib/constants/booking.constant";
 
 export function HomeContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const venuesQuery = useVenues({ current: 1, limit: 6 });
   const courtsQuery = useCourts({ current: 1, limit: 6 });
+
+  const paymentStatusParam = searchParams?.get("payment_status");
+  const bookingIdParam = searchParams?.get("bookingId");
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Start flow if params present
+  const targetBookingId = paymentStatusParam === "success" ? bookingIdParam : null;
+  
+  const bookingQuery = useBookingDetail(targetBookingId ?? "", !!targetBookingId);
+
+  useEffect(() => {
+    if (paymentStatusParam === "success" && bookingIdParam) {
+      setIsDialogOpen(true);
+    }
+  }, [paymentStatusParam, bookingIdParam]);
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    // Clean URL
+    router.replace(ROUTES.HOME);
+  };
+
+  const handleViewBookings = () => {
+    setIsDialogOpen(false);
+    router.push(ROUTES.PROFILE_BOOKINGS);
+  };
 
   const featuredVenues = venuesQuery.data?.items ?? [];
   const featuredCourts = courtsQuery.data?.items ?? [];
@@ -83,19 +126,80 @@ export function HomeContent() {
         )}
       </section>
 
-      <section className="surface-card p-6">
-        <h3 className="text-xl font-semibold">Popular areas</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {["District 1", "District 7", "Thu Duc", "Binh Thanh"].map((area) => (
-            <div
-              key={area}
-              className="rounded-xl border bg-background p-4 text-sm font-medium transition-colors hover:bg-muted/60"
-            >
-              {area}
+      {/* Payment Success Verification Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(val) => { if (!val) handleCloseDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          {bookingQuery.isLoading ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+              <Loader2 className="h-10 w-10 text-primary animate-spin" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Verifying your payment with the system...
+              </p>
             </div>
-          ))}
-        </div>
-      </section>
+          ) : bookingQuery.isError ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+              <AlertTriangle className="h-12 w-12 text-red-500" />
+              <DialogHeader>
+                <DialogTitle className="text-xl text-center">Verification Issue</DialogTitle>
+                <DialogDescription className="text-center">
+                  Payment completed but we couldn't verify the status immediately. 
+                  Please check your Booking History shortly.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="w-full sm:justify-center">
+                <Button onClick={handleCloseDialog} variant="outline">Close</Button>
+                <Button onClick={handleViewBookings}>Go to Bookings</Button>
+              </DialogFooter>
+            </div>
+          ) : bookingQuery.data?.status === BOOKING_STATUS.CONFIRMED ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+              <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
+                <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+              </div>
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-xl text-center font-bold text-green-600">
+                  Payment Successful!
+                </DialogTitle>
+                <DialogDescription className="text-center">
+                  Your booking has been confirmed successfully.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="w-full rounded-xl bg-muted/50 p-4 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                  Booking Reference
+                </p>
+                <p className="text-sm font-mono font-medium break-all mt-1">
+                  {bookingIdParam}
+                </p>
+              </div>
+
+              <DialogFooter className="w-full flex flex-col sm:flex-row gap-2">
+                <Button onClick={handleCloseDialog} variant="outline" className="flex-1">
+                  Done
+                </Button>
+                <Button onClick={handleViewBookings} className="flex-1">
+                  View My Bookings
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+              <Loader2 className="h-10 w-10 text-yellow-500 animate-spin" />
+              <DialogHeader>
+                <DialogTitle className="text-xl text-center">Processing Order</DialogTitle>
+                <DialogDescription className="text-center">
+                  We received confirmation, finalizing the transaction status. 
+                  Updating momentarily...
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="w-full flex justify-center">
+                <Button onClick={handleCloseDialog} variant="outline">Dismiss</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

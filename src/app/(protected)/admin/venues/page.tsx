@@ -109,11 +109,9 @@ export default function AdminVenuesPage() {
   const venuesQuery = useVenues({
     current,
     limit: pageSize,
-    filter: {
-      name: debouncedKeyword || undefined,
-      address: debouncedKeyword || undefined,
-      ownerId: filterOwnerId === "all" ? undefined : filterOwnerId,
-    },
+    name: debouncedKeyword || undefined,
+    address: debouncedKeyword || undefined,
+    ownerId: filterOwnerId === "all" ? undefined : filterOwnerId,
   });
   const detailVenueQuery = useVenueDetail(detailVenueId ?? "", !!detailVenueId);
 

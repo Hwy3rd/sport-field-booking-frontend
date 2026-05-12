@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 
 import { useCartStore } from "@/stores/cart.store";
 import { useAuth } from "@/hooks/useAuth";
-import { paymentProvider } from "@/app/(protected)/checkout/payment-provider";
 import { BookingService } from "@/services/booking.service";
 import { ROUTES } from "@/lib/constants/routes.constant";
 import { getErrorMessage } from "@/lib/helper/get-message";
+import { useCreatePaymentUrl } from "./usePayment";
 
 export interface CheckoutSummary {
   totalCourts: number;
@@ -24,6 +24,7 @@ export const useCheckout = () => {
   const { items: cartItems, clearCart } = useCartStore();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const createPaymentUrlMutation = useCreatePaymentUrl();
 
   const calculateSummary = (): CheckoutSummary => {
     const subtotal = cartItems.reduce((sum, item) => {
@@ -65,36 +66,33 @@ export const useCheckout = () => {
     setIsProcessing(true);
 
     try {
-      const summary = calculateSummary();
-
-      // Step 1: Process payment
-      const paymentResult = await paymentProvider.charge(summary.total, {
-        userId: user.id,
-        totalItems: cartItems.length,
-        totalSlots: summary.totalSlots,
-      });
-
-      if (!paymentResult.success) {
-        throw new Error(paymentResult.message || "Thanh toán thất bại");
-      }
-
-      toast.success("Thanh toán thành công!");
-
-      // Step 2: Create booking with all selected time slots
+      // Step 1: Create booking with all selected time slots
       const timeSlotIds = cartItems.flatMap((item) => item.timeSlots.map((slot) => slot.id));
 
       const booking = await BookingService.createBooking({
         timeSlotIds,
       });
 
-      if (!booking) {
-        throw new Error("Không thể tạo đặt phòng");
+      if (!booking || !booking.id) {
+        throw new Error("Không thể tạo yêu cầu đặt sân");
       }
 
-      // Step 3: Clear cart and redirect
+      // Step 2: Generate VNPAY Payment URL
+      const { paymentUrl } = await createPaymentUrlMutation.mutateAsync({
+        bookingId: booking.id,
+      });
+
+      if (!paymentUrl) {
+        throw new Error("Không thể khởi tạo liên kết thanh toán");
+      }
+
+      // Step 3: Clear local cart
       clearCart();
-      toast.success("Đặt phòng thành công!");
-      router.push(ROUTES.PROFILE_BOOKINGS);
+      
+      toast.info("Đang chuyển hướng tới cổng thanh toán VNPAY...");
+
+      // Step 4: Redirect user to VNPAY
+      window.location.href = paymentUrl;
     } catch (error) {
       const message = getErrorMessage(error, "Có lỗi xảy ra khi xử lý thanh toán");
       toast.error(message);
@@ -112,6 +110,6 @@ export const useCheckout = () => {
     calculateSummary,
     processPayment,
     continueShopping,
-    isProcessing,
+    isProcessing: isProcessing || createPaymentUrlMutation.isPending,
   };
 };

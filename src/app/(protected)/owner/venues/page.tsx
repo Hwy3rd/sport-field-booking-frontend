@@ -60,11 +60,9 @@ export default function OwnerVenuesPage() {
   const venuesQuery = useVenues({
     current: page,
     limit,
-    filter: {
-      ownerId,
-      name: search || undefined,
-      address: filterAddress || search || undefined,
-    },
+    ownerId,
+    name: search || undefined,
+    address: filterAddress || search || undefined,
   });
   const detailVenueQuery = useVenueDetail(detailVenueId ?? "", !!detailVenueId);
 
