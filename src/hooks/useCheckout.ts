@@ -21,7 +21,7 @@ export interface CheckoutSummary {
 
 export const useCheckout = () => {
   const router = useRouter();
-  const { items: cartItems, clearCart } = useCartStore();
+  const { items: cartItems } = useCartStore();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const createPaymentUrlMutation = useCreatePaymentUrl();
@@ -29,25 +29,21 @@ export const useCheckout = () => {
   const calculateSummary = (): CheckoutSummary => {
     const subtotal = cartItems.reduce((sum, item) => {
       const itemTotal = item.timeSlots.reduce((slotSum, slot) => {
-        const hours =
-          (new Date(`1970-01-01T${slot.endTime}:00`) as any) -
-          (new Date(`1970-01-01T${slot.startTime}:00`) as any);
-        const durationHours = hours / (1000 * 60 * 60);
-        return slotSum + durationHours * item.court.pricePerHour;
+        return slotSum + slot.price;
       }, 0);
       return sum + itemTotal;
     }, 0);
 
-    const tax = subtotal * 0.1; // 10% tax
-    const total = subtotal + tax;
+    const tax = 0;
+    const total = subtotal;
     const totalSlots = cartItems.reduce((sum, item) => sum + item.timeSlots.length, 0);
 
     return {
       totalCourts: cartItems.length,
       totalSlots,
-      subtotal: Math.round(subtotal * 100) / 100,
-      tax: Math.round(tax * 100) / 100,
-      total: Math.round(total * 100) / 100,
+      subtotal,
+      tax,
+      total,
     };
   };
 
@@ -86,12 +82,9 @@ export const useCheckout = () => {
         throw new Error("Không thể khởi tạo liên kết thanh toán");
       }
 
-      // Step 3: Clear local cart
-      clearCart();
-      
       toast.info("Đang chuyển hướng tới cổng thanh toán VNPAY...");
 
-      // Step 4: Redirect user to VNPAY
+      // Step 3: Redirect user to VNPAY
       window.location.href = paymentUrl;
     } catch (error) {
       const message = getErrorMessage(error, "Có lỗi xảy ra khi xử lý thanh toán");

@@ -93,25 +93,16 @@ export default function CheckoutPage() {
                 <div className="mb-4 space-y-2">
                   <p className="text-sm font-medium">Khung giờ:</p>
                   <div className="flex flex-wrap gap-2">
-                    {item.timeSlots.map((slot) => {
-                      const hours =
-                        (new Date(`1970-01-01T${slot.endTime}:00`) as any) -
-                        (new Date(`1970-01-01T${slot.startTime}:00`) as any);
-                      const durationHours = hours / (1000 * 60 * 60);
-                      const slotPrice = durationHours * item.court.pricePerHour;
-
-                      return (
-                        <div key={slot.id} className="bg-primary/10 rounded px-2 py-1 text-xs">
-                          <span className="font-medium">
-                            {slot.startTime} - {slot.endTime}
-                          </span>
-                          <span className="text-muted-foreground ml-2">
-                            ({durationHours}h × ${item.court.pricePerHour}/h = $
-                            {slotPrice.toFixed(2)})
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {item.timeSlots.map((slot) => (
+                      <div key={slot.id} className="bg-primary/10 rounded px-2 py-1 text-xs">
+                        <span className="font-medium">
+                          {slot.startTime} - {slot.endTime}
+                        </span>
+                        <span className="text-muted-foreground ml-2">
+                          ({slot.price.toLocaleString()} VND)
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -120,16 +111,10 @@ export default function CheckoutPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground text-sm">Tổng tiền:</span>
                     <span className="font-semibold">
-                      $
                       {(
-                        item.timeSlots.reduce((sum, slot) => {
-                          const hours =
-                            (new Date(`1970-01-01T${slot.endTime}:00`) as any) -
-                            (new Date(`1970-01-01T${slot.startTime}:00`) as any);
-                          const durationHours = hours / (1000 * 60 * 60);
-                          return sum + durationHours * item.court.pricePerHour;
-                        }, 0) || 0
-                      ).toFixed(2)}
+                        item.timeSlots.reduce((sum, slot) => sum + slot.price, 0) || 0
+                      ).toLocaleString()}{" "}
+                      VND
                     </span>
                   </div>
                 </div>
@@ -156,18 +141,20 @@ export default function CheckoutPage() {
 
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tiền hàng:</span>
-                  <span>${summary.subtotal.toFixed(2)}</span>
+                  <span>{summary.subtotal.toLocaleString()} VND</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Thuế (10%):</span>
-                  <span>${summary.tax.toFixed(2)}</span>
-                </div>
+                {summary.tax > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Thuế:</span>
+                    <span>{summary.tax.toLocaleString()} VND</span>
+                  </div>
+                )}
 
                 <Separator className="my-3" />
 
                 <div className="flex justify-between text-base font-semibold">
                   <span>Tổng cộng:</span>
-                  <span className="text-primary">${summary.total.toFixed(2)}</span>
+                  <span className="text-primary">{summary.total.toLocaleString()} VND</span>
                 </div>
               </div>
 
