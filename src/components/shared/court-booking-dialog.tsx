@@ -27,7 +27,7 @@ import {
 import type { Court } from "@/types/court.type";
 import type { TimeSlot } from "@/types/time-slot.type";
 
-const BOOKING_HOLD_MINUTES = 10;
+const BOOKING_HOLD_MINUTES = 15;
 const BOOKING_WINDOW_DAYS = 30;
 const EMPTY_TIME_SLOTS: TimeSlot[] = [];
 

@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 import type { Court } from "@/types/court.type";
 import type { TimeSlot } from "@/types/time-slot.type";
 
-const DEFAULT_HOLD_MINUTES = 10;
+const DEFAULT_HOLD_MINUTES = 15;
 
 export type CartCourtSummary = Pick<
   Court,

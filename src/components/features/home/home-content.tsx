@@ -42,9 +42,12 @@ export function HomeContent() {
   const targetBookingId = paymentStatusParam === "success" ? bookingIdParam : null;
 
   const bookingQuery = useBookingDetail(targetBookingId ?? "", !!targetBookingId);
-  if (bookingQuery.data?.status === BOOKING_STATUS.CONFIRMED) {
-    clearCart();
-  }
+
+  useEffect(() => {
+    if (paymentStatusParam === "success" && cartItems.length > 0) {
+      clearCart();
+    }
+  }, [paymentStatusParam, cartItems.length, clearCart]);
 
   useEffect(() => {
     if (paymentStatusParam === "success" && bookingIdParam) {

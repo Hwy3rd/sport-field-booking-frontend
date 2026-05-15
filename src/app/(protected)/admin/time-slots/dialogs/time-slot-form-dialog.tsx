@@ -66,9 +66,9 @@ export function TimeSlotFormDialog(props: TimeSlotFormDialogProps) {
       status: slot?.status ?? "available",
     } as TimeSlotFormValue,
     onSubmit: ({ value }) => {
-      const payload: any = { ...value };
-      if (mode === "create") onCreate(payload);
-      if (mode === "edit") onEdit(payload);
+      const { venueId, ...payload } = value as TimeSlotFormValue;
+      if (mode === "create") onCreate(payload as any);
+      if (mode === "edit") onEdit(payload as any);
     },
   });
 

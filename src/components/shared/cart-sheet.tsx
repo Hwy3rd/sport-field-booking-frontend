@@ -20,7 +20,7 @@ import {
 import { formatBookingDate, formatHoldTime } from "@/lib/helper/date";
 import { useCartStore } from "@/stores/cart.store";
 import { ROUTES } from "@/lib/constants/routes.constant";
-import { useUnlockTimeSlot } from "@/hooks/useTimeSlot";
+import { useUnlockTimeSlot, useLockTimeSlot } from "@/hooks/useTimeSlot";
 import { toast } from "sonner";
 
 export function CartSheet() {
@@ -30,8 +30,38 @@ export function CartSheet() {
   const removeTimeSlot = useCartStore((state) => state.removeTimeSlot);
   const pruneExpiredItems = useCartStore((state) => state.pruneExpiredItems);
   const clearCart = useCartStore((state) => state.clearCart);
+  const saveCourtBooking = useCartStore((state) => state.saveCourtBooking);
   const [nowTick, setNowTick] = useState(Date.now());
   const unlockTimeSlotMutation = useUnlockTimeSlot();
+  const lockTimeSlotMutation = useLockTimeSlot();
+  const [editingCartLockId, setEditingCartLockId] = useState<string | null>(null);
+
+  const handleEditCart = async (
+    item: any,
+    selectedDate: string,
+    newTimeSlots: any[],
+  ) => {
+    setEditingCartLockId(item.court.id);
+    try {
+      const oldSlotIds = item.timeSlots.map((s: any) => s.id);
+      const newSlotIds = newTimeSlots.map((s: any) => s.id);
+      
+      const toUnlock = oldSlotIds.filter((id: string) => !newSlotIds.includes(id));
+      const toLock = newSlotIds.filter((id: string) => !oldSlotIds.includes(id));
+
+      await Promise.all([
+        ...toUnlock.map((id: string) => unlockTimeSlotMutation.mutateAsync(id)),
+        ...toLock.map((id: string) => lockTimeSlotMutation.mutateAsync(id)),
+      ]);
+
+      saveCourtBooking(item.court, selectedDate, newTimeSlots);
+      toast.success("Cart updated successfully");
+    } catch {
+      toast.error("Failed to update cart. Some slots might be unavailable.");
+    } finally {
+      setEditingCartLockId(null);
+    }
+  };
 
   const handleUnlockAndRemoveCourt = async (courtId: string, timeSlots: {id: string}[]) => {
     try {
@@ -148,10 +178,9 @@ export function CartSheet() {
                             </Button>
                           }
                           onConfirm={({ selectedDate, timeSlots }) => {
-                            useCartStore
-                              .getState()
-                              .saveCourtBooking(item.court, selectedDate, timeSlots);
+                            handleEditCart(item, selectedDate, timeSlots);
                           }}
+                          isSubmitting={editingCartLockId === item.court.id}
                         />
                         <Button
                           variant="ghost"

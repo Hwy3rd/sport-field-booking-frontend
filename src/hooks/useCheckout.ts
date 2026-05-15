@@ -21,7 +21,7 @@ export interface CheckoutSummary {
 
 export const useCheckout = () => {
   const router = useRouter();
-  const { items: cartItems } = useCartStore();
+  const { items: cartItems, clearCart } = useCartStore();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const createPaymentUrlMutation = useCreatePaymentUrl();
@@ -81,6 +81,9 @@ export const useCheckout = () => {
       if (!paymentUrl) {
         throw new Error("Không thể khởi tạo liên kết thanh toán");
       }
+
+      // Clear local cart now that booking + payment session is fully finalized
+      clearCart();
 
       toast.info("Đang chuyển hướng tới cổng thanh toán VNPAY...");
 
