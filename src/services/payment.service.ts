@@ -17,4 +17,12 @@ export const PaymentService = {
 
     return data.data;
   },
+
+  refundBooking: async (bookingId: string): Promise<void> => {
+    const { data } = await api.post<ApiResponse<void>>(`/payment/booking/${bookingId}/refund`);
+    
+    if (!data.success) {
+      throw new Error(data.message || "Không thể gửi yêu cầu hoàn tiền");
+    }
+  },
 };

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/helper/get-message";
 import { BookingService } from "@/services/booking.service";
+import { PaymentService } from "@/services/payment.service";
 import type {
   CreateBookingRequest,
   GetBookingHistoryRequest,
@@ -90,6 +91,23 @@ export const useCancelBooking = () => {
     },
   });
 };
+
+export const useRefundBooking = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (bookingId: string) => PaymentService.refundBooking(bookingId),
+    onSuccess: (_, bookingId) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) });
+      toast.success("Đơn đặt sân đã được hủy và hoàn trả 100% số tiền thành công!");
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Không thể thực hiện hoàn trả tiền và hủy đơn"));
+    },
+  });
+};
+
 
 export const useDeleteBooking = () => {
   const queryClient = useQueryClient();

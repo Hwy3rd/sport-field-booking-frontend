@@ -18,6 +18,19 @@ import { Separator } from "@/components/ui/separator";
 import { useCreatePaymentUrl } from "@/hooks/usePayment";
 import { toast } from "sonner";
 import { Loader2, CreditCard } from "lucide-react";
+import { useCancelBooking, useRefundBooking, useBookingDetail } from "@/hooks/useBooking";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Info } from "lucide-react";
 import { BOOKING_STATUS } from "@/lib/constants/booking.constant";
 
 interface BookingDetailDialogProps {
@@ -26,10 +39,60 @@ interface BookingDetailDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDetailDialogProps) {
+export function BookingDetailDialog({ booking: initialBooking, open, onOpenChange }: BookingDetailDialogProps) {
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+
+  const cancelBookingMutation = useCancelBooking();
+  const refundBookingMutation = useRefundBooking();
   const createPaymentUrlMutation = useCreatePaymentUrl();
 
+  // Nạp động dữ liệu chi tiết sâu (bao gồm items, timeSlot, court, venue) khi mở dialog
+  const { data: detailedBooking, isLoading: isLoadingDetail } = useBookingDetail(
+    initialBooking?.id || "",
+    !!initialBooking?.id && open
+  );
+
+  // Tự động chuyển sang dữ liệu chi tiết đầy đủ ngay khi nạp xong
+  const booking = detailedBooking || initialBooking;
+
   if (!booking) return null;
+
+  // Tính toán mốc 24h trước giờ chơi
+  const now = dayjs();
+  let minPlayTime: any = null;
+
+  if (booking.items && booking.items.length > 0) {
+    booking.items.forEach((item) => {
+      const exactTime = dayjs(`${item.slotDate}T${item.startTime}`);
+      if (!minPlayTime || exactTime.isBefore(minPlayTime)) {
+        minPlayTime = exactTime;
+      }
+    });
+  }
+
+  const hoursUntilPlay = minPlayTime ? minPlayTime.diff(now, "hour", true) : 0;
+  const isRefundable = hoursUntilPlay >= 24;
+
+  const handleCancelBooking = async () => {
+    try {
+      await cancelBookingMutation.mutateAsync(booking.id);
+      setShowCancelConfirm(false);
+      onOpenChange(false);
+    } catch (error) {
+      // handled
+    }
+  };
+
+  const handleRefundBooking = async () => {
+    try {
+      await refundBookingMutation.mutateAsync(booking.id);
+      setShowRefundConfirm(false);
+      onOpenChange(false);
+    } catch (error) {
+      // handled
+    }
+  };
 
   const handlePayNow = async () => {
     try {
@@ -90,10 +153,19 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDeta
 
           {/* Booking Items */}
           <div>
-            <h3 className="mb-4 font-semibold">Booking Items ({booking.items?.length})</h3>
-            <div className="space-y-4">
-              {booking.items?.map((item) => (
-                <div key={item.id} className="rounded-lg border p-4">
+            <h3 className="mb-4 font-semibold">Booking Items ({booking.items?.length || 0})</h3>
+            
+            {isLoadingDetail && !detailedBooking ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-3 border border-dashed rounded-lg bg-muted/30">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground font-medium">
+                  Đang tải thông tin sân chi tiết...
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {booking.items?.map((item) => (
+                  <div key={item.id} className="rounded-lg border p-4">
                   {/* Court & Venue */}
                   <div className="mb-3">
                     <p className="font-medium">{item.timeSlot?.court?.name || "Unknown Court"}</p>
@@ -149,7 +221,8 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDeta
                 </div>
               ))}
             </div>
-          </div>
+          )}
+        </div>
 
           <Separator />
 
@@ -170,25 +243,112 @@ export function BookingDetailDialog({ booking, open, onOpenChange }: BookingDeta
           </div>
         </div>
 
-        {booking.status === BOOKING_STATUS.PENDING && (
+        {(booking.status === BOOKING_STATUS.PENDING || booking.status === BOOKING_STATUS.CONFIRMED) && (
           <>
             <Separator className="my-2" />
-            <DialogFooter>
-              <Button 
-                onClick={handlePayNow} 
-                disabled={createPaymentUrlMutation.isPending}
-                className="w-full md:w-auto gap-2"
-              >
-                {createPaymentUrlMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CreditCard className="h-4 w-4" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+              {/* Left/Warning message */}
+              <div className="text-xs text-muted-foreground max-w-md">
+                {booking.status === BOOKING_STATUS.CONFIRMED && !isRefundable && (
+                  <span className="text-destructive flex items-center gap-1.5 font-medium bg-destructive/10 p-2 rounded-lg">
+                    <Info className="h-4 w-4 shrink-0" />
+                    Không thể hoàn tiền do trận đấu diễn ra dưới 24h nữa.
+                  </span>
                 )}
-                Pay Now
-              </Button>
-            </DialogFooter>
+                {booking.status === BOOKING_STATUS.CONFIRMED && isRefundable && (
+                  <span className="text-emerald-600 flex items-center gap-1.5 font-medium bg-emerald-50 dark:bg-emerald-950/50 p-2 rounded-lg">
+                    <Info className="h-4 w-4 shrink-0" />
+                    Đủ điều kiện hủy & nhận lại 100% tiền hoàn trả.
+                  </span>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 w-full sm:w-auto justify-end">
+                {booking.status === BOOKING_STATUS.PENDING && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCancelConfirm(true)}
+                      disabled={cancelBookingMutation.isPending}
+                      className="flex-1 sm:flex-initial text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      Hủy Đặt Sân
+                    </Button>
+                    <Button
+                      onClick={handlePayNow}
+                      disabled={createPaymentUrlMutation.isPending}
+                      className="flex-1 sm:flex-initial gap-2"
+                    >
+                      {createPaymentUrlMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4" />
+                      )}
+                      Thanh Toán Ngay
+                    </Button>
+                  </>
+                )}
+
+                {booking.status === BOOKING_STATUS.CONFIRMED && (
+                  <Button
+                    variant="destructive"
+                    disabled={!isRefundable || refundBookingMutation.isPending}
+                    onClick={() => setShowRefundConfirm(true)}
+                    className="w-full sm:w-auto gap-2 font-medium shadow-sm"
+                  >
+                    {refundBookingMutation.isPending && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    Hủy & Hoàn Tiền
+                  </Button>
+                )}
+              </div>
+            </div>
           </>
         )}
+
+        {/* Hộp thoại xác nhận hủy PENDING */}
+        <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Xác nhận hủy đặt sân?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Hành động này không thể khôi phục. Toàn bộ các khung giờ đã chọn sẽ được giải phóng ngay lập tức cho người dùng khác.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Đóng</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleCancelBooking}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Xác nhận Hủy
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Hộp thoại xác nhận hủy CONFIRMED + REFUND */}
+        <AlertDialog open={showRefundConfirm} onOpenChange={setShowRefundConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Xác nhận hủy và hoàn 100% tiền?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Chúng tôi sẽ gửi yêu cầu hoàn trả 100% số tiền qua cổng VNPay. Giao dịch hoàn tất sẽ tự động giải phóng các sân đã đặt. Quá trình nhận lại tiền tùy thuộc vào ngân hàng của bạn.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Hủy bỏ</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleRefundBooking}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {refundBookingMutation.isPending ? "Đang gửi yêu cầu..." : "Xác nhận Hoàn tiền"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
