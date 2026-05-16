@@ -1,221 +1,272 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { Eye, Pencil, RefreshCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePagination } from "@/components/shared/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCourts } from "@/hooks/useCourt";
 import {
-  useCreateTimeSlotTemplate,
-  useDeleteTimeSlotTemplate,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
   useTimeSlotTemplates,
+  useCreateTimeSlotTemplate,
   useUpdateTimeSlotTemplate,
+  useDeleteTimeSlotTemplate,
 } from "@/hooks/useTimeSlot";
+import { useDebounce } from "@/hooks/useDebounce";
+import type { TimeSlotTemplate } from "@/types/time-slot.type";
+import { TIME_SLOT_WEEKDAY_LABEL_EN } from "@/lib/constants/time-slot.constant";
+import { TimeSlotTemplateFormDialog } from "@/app/(protected)/owner/time-slot-templates/dialogs/time-slot-template-form-dialog";
+import { TimeSlotTemplateGroupDialog } from "@/app/(protected)/owner/time-slot-templates/dialogs/time-slot-template-group-dialog";
 import { useMe } from "@/hooks/useUser";
 import { useVenues } from "@/hooks/useVenue";
-import {
-  TIME_SLOT_WEEKDAY_LABEL_VI,
-  TIME_SLOT_WEEKDAY_VALUES,
-} from "@/lib/constants/time-slot.constant";
-import type { TimeSlotWeekday } from "@/lib/constants/time-slot.constant";
-
-const schema = z.object({
-  courtId: z.string().min(1, "Court is required"),
-  weekday: z.coerce.number().refine((value) => TIME_SLOT_WEEKDAY_VALUES.includes(value as TimeSlotWeekday), {
-    message: "Weekday is required",
-  }),
-  startTime: z.string().min(4, "Start time is required"),
-  endTime: z.string().min(4, "End time is required"),
-  price: z.coerce.number().min(0, "Price must be >= 0"),
-  isActive: z.enum(["true", "false"]),
-});
-type FormValue = z.infer<typeof schema>;
 
 export default function OwnerTimeSlotTemplatesPage() {
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [current, setCurrent] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [keyword, setKeyword] = useState("");
+  
+  // Dialog States
+  const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<TimeSlotTemplate | null>(null);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
+  
+  const [selectedGroup, setSelectedGroup] = useState<TimeSlotTemplate[] | null>(null);
+  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
+
+  const debouncedKeyword = useDebounce(keyword.trim(), 500);
+
+  const templatesQuery = useTimeSlotTemplates({
+    current,
+    limit: pageSize,
+    name: debouncedKeyword || undefined,
+  });
+
+  const createTemplateMutation = useCreateTimeSlotTemplate();
+  const updateTemplateMutation = useUpdateTimeSlotTemplate();
+  const deleteTemplateMutation = useDeleteTimeSlotTemplate();
 
   const meQuery = useMe();
   const ownerId = meQuery.data?.id;
-  const venuesQuery = useVenues({
-    current: 1,
-    limit: 200,
-    ownerId,
-  });
-  const courtsQuery = useCourts({ current: 1, limit: 500 });
-  const templatesQuery = useTimeSlotTemplates({ current: page, limit });
-
-  const createMutation = useCreateTimeSlotTemplate();
-  const updateMutation = useUpdateTimeSlotTemplate();
-  const deleteMutation = useDeleteTimeSlotTemplate();
-
+  const venuesQuery = useVenues({ current: 1, limit: 100, ownerId });
   const ownerVenueIds = useMemo(
-    () => new Set((venuesQuery.data?.items ?? []).map((venue) => venue.id)),
-    [venuesQuery.data?.items],
-  );
-  const ownerCourts = useMemo(
-    () => (courtsQuery.data?.items ?? []).filter((court) => ownerVenueIds.has(court.venueId)),
-    [courtsQuery.data?.items, ownerVenueIds],
-  );
-  const ownerCourtIds = useMemo(
-    () => new Set(ownerCourts.map((court) => court.id)),
-    [ownerCourts],
-  );
-  const rows = useMemo(
-    () => (templatesQuery.data?.items ?? []).filter((tpl) => tpl.courtId && ownerCourtIds.has(tpl.courtId)),
-    [templatesQuery.data?.items, ownerCourtIds],
+    () => new Set((venuesQuery.data?.items ?? []).map((v) => v.id)),
+    [venuesQuery.data?.items]
   );
 
-  const form = useForm<FormValue>({
-    resolver: zodResolver(schema as any),
-    defaultValues: {
-      courtId: "",
-      weekday: 1,
-      startTime: "06:00",
-      endTime: "07:00",
-      price: 100000,
-      isActive: "true",
-    },
-  });
+  const pageItems = useMemo(
+    () => (templatesQuery.data?.items ?? []).filter((item) => ownerVenueIds.has(item.venueId)),
+    [templatesQuery.data?.items, ownerVenueIds]
+  );
 
-  const submit = (values: FormValue) => {
-    const payload: any = {
-      courtId: values.courtId,
-      weekday: values.weekday as TimeSlotWeekday,
-      startTime: values.startTime,
-      endTime: values.endTime,
-      price: values.price,
-      isActive: values.isActive === "true",
-    };
-
-    if (editingId) {
-      updateMutation.mutate(
-        { id: editingId, payload },
-        {
-          onSuccess: () => {
-            setEditingId(null);
-            setIsCreateOpen(false);
-            form.reset();
-          },
-        },
-      );
-      return;
-    }
-
-    createMutation.mutate(payload, {
-      onSuccess: () => {
-        setIsCreateOpen(false);
-        form.reset();
-      },
+  // Group items by Venue + Name + Court
+  const groupedTemplates = useMemo(() => {
+    const groups = new Map<string, TimeSlotTemplate[]>();
+    pageItems.forEach((item) => {
+      const key = `${item.venueId}_${item.name}_${item.courtId}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
     });
+    return Array.from(groups.values());
+  }, [pageItems]);
+
+  const submit = async (values: any) => {
+    try {
+      await createTemplateMutation.mutateAsync(values);
+      setFormMode(null);
+      templatesQuery.refetch();
+    } catch {}
+  };
+
+  const submitEdit = async (values: any) => {
+    if (!editingTemplate) return;
+    try {
+      const { weekdays, ...rest } = values;
+      await updateTemplateMutation.mutateAsync({
+        id: editingTemplate.id,
+        payload: { ...rest, weekday: weekdays[0] },
+      });
+      setEditingTemplate(null);
+      setFormMode(null);
+      
+      // Update selected group locally if the group dialog is open
+      if (selectedGroup) {
+        setSelectedGroup(prev => 
+          prev?.map(item => 
+            item.id === editingTemplate.id 
+              ? { ...item, ...rest, weekday: weekdays[0] } 
+              : item
+          ) ?? null
+        );
+      }
+      templatesQuery.refetch();
+    } catch {}
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!deleteTemplateId) return;
+    try {
+      await deleteTemplateMutation.mutateAsync(deleteTemplateId);
+      setDeleteTemplateId(null);
+      
+      // Update selected group locally if the group dialog is open
+      if (selectedGroup) {
+        const newGroup = selectedGroup.filter(item => item.id !== deleteTemplateId);
+        if (newGroup.length === 0) {
+          setSelectedGroup(null); // Close dialog if group is empty
+        } else {
+          setSelectedGroup(newGroup);
+        }
+      }
+      templatesQuery.refetch();
+    } catch {}
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!deleteGroupId) return;
+    try {
+      const groupToDelete = groupedTemplates.find(g => `${g[0].venueId}_${g[0].name}_${g[0].courtId}` === deleteGroupId);
+      if (groupToDelete) {
+        for (const template of groupToDelete) {
+          await deleteTemplateMutation.mutateAsync(template.id);
+        }
+      }
+      setDeleteGroupId(null);
+      templatesQuery.refetch();
+    } catch {}
+  };
+
+  useEffect(() => {
+    setCurrent(1);
+  }, [debouncedKeyword]);
+
+  const openCreateTemplate = () => {
+    setEditingTemplate(null);
+    setFormMode("create");
+  };
+
+  const openEditTemplate = (template: TimeSlotTemplate) => {
+    setEditingTemplate(template);
+    setFormMode("edit");
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Manage slot templates" description="Maintain weekly templates for your courts" />
+      <PageHeader title="Time Slot Templates" description="Manage reusable schedules for courts" />
 
-      <div className="surface-card flex items-center gap-2 p-4">
-        <Button
-          onClick={() => {
-            setEditingId(null);
-            form.reset();
-            setIsCreateOpen(true);
-          }}
-        >
-          Create new
+      <div className="surface-card flex flex-wrap items-center gap-2 p-4">
+        <Input
+          placeholder="Search by template name"
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          className="w-full md:max-w-sm"
+        />
+        <Button variant="outline" onClick={() => templatesQuery.refetch()}>
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          Refresh
         </Button>
+        <Button onClick={openCreateTemplate}>Create new</Button>
       </div>
 
-      {templatesQuery.isLoading || courtsQuery.isLoading || venuesQuery.isLoading ? (
+      {templatesQuery.isLoading ? (
         <Skeleton className="h-72 rounded-2xl" />
-      ) : rows.length === 0 ? (
+      ) : groupedTemplates.length === 0 ? (
         <EmptyState title="No templates found" />
       ) : (
         <div className="surface-card p-3">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Court</TableHead>
-                <TableHead>Weekday</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead>Template Group</TableHead>
+                <TableHead>Venue</TableHead>
+                <TableHead>Court Override</TableHead>
+                <TableHead>Weekdays</TableHead>
+                <TableHead>Time Range</TableHead>
+                <TableHead>Base Price</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell>
-                    {ownerCourts.find((court) => court.id === template.courtId)?.name ??
-                      template.courtId?.slice(0, 8)}
-                  </TableCell>
-                  <TableCell>{TIME_SLOT_WEEKDAY_LABEL_VI[template.weekday] ?? template.weekday}</TableCell>
-                  <TableCell>
-                    {template.startTime} - {template.endTime}
-                  </TableCell>
-                  <TableCell>{template.isActive ? "Yes" : "No"}</TableCell>
-                  <TableCell className="text-right">{template.price.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mr-2"
-                      onClick={() => {
-                        setEditingId(template.id);
-                        form.reset({
-                          courtId: template.courtId ?? "",
-                          weekday: template.weekday,
-                          startTime: template.startTime,
-                          endTime: template.endTime,
-                          price: template.price,
-                          isActive: template.isActive ? "true" : "false",
-                        });
-                        setIsCreateOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => deleteMutation.mutate(template.id)}>
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {groupedTemplates.map((group) => {
+                const first = group[0];
+                const groupId = `${first.venueId}_${first.name}_${first.courtId}`;
+                const days = group.map(i => TIME_SLOT_WEEKDAY_LABEL_EN[i.weekday]).join(", ");
+                const allActive = group.every(i => i.isActive);
+                const someActive = group.some(i => i.isActive);
+                
+                return (
+                  <TableRow 
+                    key={groupId} 
+                    className="cursor-pointer"
+                    onClick={() => setSelectedGroup(group)}
+                  >
+                    <TableCell className="font-medium">{first.name}</TableCell>
+                    <TableCell>{first.venue?.name ?? "Unknown Venue"}</TableCell>
+                    <TableCell>
+                      {first.court?.name ?? (
+                        <span className="text-muted-foreground italic">None (Applies to Venue)</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={days}>{days}</TableCell>
+                    <TableCell>
+                      {first.startTime} - {first.endTime}
+                    </TableCell>
+                    <TableCell>{first.price.toLocaleString()} VND</TableCell>
+                    <TableCell>
+                      <Badge variant={allActive ? "success" : someActive ? "warning" : "outline"}>
+                        {allActive ? "Active" : someActive ? "Partial" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedGroup(group);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteGroupId(groupId);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -223,146 +274,90 @@ export default function OwnerTimeSlotTemplatesPage() {
 
       <Card className="flex flex-wrap items-center justify-end gap-2 p-2">
         <TablePagination
-          currentPage={templatesQuery.data?.current ?? page}
-          total={rows.length}
-          pageSize={limit}
-          onChangePage={setPage}
+          currentPage={templatesQuery.data?.current ?? current}
+          total={pageItems.length}
+          pageSize={pageSize}
+          onChangePage={setCurrent}
           onChangePageSize={(value) => {
-            setPage(1);
-            setLimit(value);
+            setCurrent(1);
+            setPageSize(value);
           }}
         />
       </Card>
 
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingId ? "Edit template" : "Create template"}</DialogTitle>
-            <DialogDescription>Fill template information below.</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(submit)}>
-              <FormField
-                control={form.control}
-                name="courtId"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Court</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select court" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {ownerCourts.map((court) => (
-                          <SelectItem key={court.id} value={court.id}>
-                            {court.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="weekday"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Weekday</FormLabel>
-                    <Select value={String(field.value)} onValueChange={(value) => field.onChange(Number(value))}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select weekday" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {TIME_SLOT_WEEKDAY_VALUES.map((weekday) => (
-                          <SelectItem key={weekday} value={String(weekday)}>
-                            {TIME_SLOT_WEEKDAY_LABEL_VI[weekday]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={0} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start time</FormLabel>
-                    <FormControl>
-                      <Input type="time" step={60} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End time</FormLabel>
-                    <FormControl>
-                      <Input type="time" step={60} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Active</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select active status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="true">Yes</SelectItem>
-                        <SelectItem value="false">No</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter className="md:col-span-2">
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {createMutation.isPending || updateMutation.isPending
-                    ? "Saving..."
-                    : editingId
-                      ? "Save changes"
-                      : "Create"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      <TimeSlotTemplateGroupDialog
+        group={selectedGroup}
+        onOpenChange={(open) => !open && setSelectedGroup(null)}
+        onEditItem={openEditTemplate}
+        onDeleteItem={setDeleteTemplateId}
+      />
+
+      <TimeSlotTemplateFormDialog
+        mode={formMode}
+        template={editingTemplate}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setFormMode(null);
+            setEditingTemplate(null);
+          }
+        }}
+        onCreate={submit}
+        onEdit={submitEdit}
+        isCreating={createTemplateMutation.isPending}
+        isUpdating={updateTemplateMutation.isPending}
+      />
+
+      {/* Delete Single Template Alert */}
+      <AlertDialog
+        open={!!deleteTemplateId}
+        onOpenChange={(open: boolean) => {
+          if (!open) setDeleteTemplateId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete specific day?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The template rule for this specific day will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTemplate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Group Alert */}
+      <AlertDialog
+        open={!!deleteGroupId}
+        onOpenChange={(open: boolean) => {
+          if (!open) setDeleteGroupId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete entire group?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. All template rules within this group will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteGroup}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Group
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

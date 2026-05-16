@@ -12,11 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCourts } from "@/hooks/useCourt";
+import { TopVenuesBarChart } from "@/components/dashboard/top-venues-bar-chart";
 import {
   useOccupancyRate,
   useRevenueChart,
   useSportSplit,
   useSummaryStats,
+  useTopVenues,
 } from "@/hooks/useStatistic";
 import { useMe } from "@/hooks/useUser";
 import { useVenues } from "@/hooks/useVenue";
@@ -38,6 +40,7 @@ export default function OwnerDashboardPage() {
   const chartQuery = useRevenueChart();
   const sportQuery = useSportSplit();
   const occupancyQuery = useOccupancyRate();
+  const topVenuesQuery = useTopVenues();
 
   const ownerVenueIds = useMemo(
     () => new Set((venuesQuery.data?.items ?? []).map((item) => item.id)),
@@ -91,6 +94,9 @@ export default function OwnerDashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <TopVenuesBarChart data={topVenuesQuery.data ?? []} isLoading={topVenuesQuery.isLoading} />
+        </div>
         <OccupancyRadialCard data={occupancyQuery.data} isLoading={occupancyQuery.isLoading} />
       </div>
 
