@@ -30,8 +30,8 @@ type CartState = {
     selectedDate: string,
     timeSlots: TimeSlot[],
   ) => { saved: boolean };
-  removeCourt: (courtId: string) => void;
-  removeTimeSlot: (courtId: string, timeSlotId: string) => void;
+  removeCourt: (courtId: string, selectedDate: string) => void;
+  removeTimeSlot: (courtId: string, selectedDate: string, timeSlotId: string) => void;
   pruneExpiredItems: () => void;
   clearCart: () => void;
 };
@@ -90,15 +90,17 @@ export const useCartStore = create<CartState>()(
 
         return { saved: true };
       },
-      removeCourt: (courtId) =>
+      removeCourt: (courtId, selectedDate) =>
         set((state) => ({
-          items: state.items.filter((item) => item.court.id !== courtId),
+          items: state.items.filter(
+            (item) => !(item.court.id === courtId && item.selectedDate === selectedDate),
+          ),
         })),
-      removeTimeSlot: (courtId, timeSlotId) =>
+      removeTimeSlot: (courtId, selectedDate, timeSlotId) =>
         set((state) => ({
           items: state.items
             .map((item) => {
-              if (item.court.id !== courtId) {
+              if (item.court.id !== courtId || item.selectedDate !== selectedDate) {
                 return item;
               }
 

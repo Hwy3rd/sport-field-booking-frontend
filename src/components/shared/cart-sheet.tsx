@@ -54,6 +54,9 @@ export function CartSheet() {
         ...toLock.map((id: string) => lockTimeSlotMutation.mutateAsync(id)),
       ]);
 
+      if (item.selectedDate !== selectedDate) {
+        removeCourt(item.court.id, item.selectedDate);
+      }
       saveCourtBooking(item.court, selectedDate, newTimeSlots);
       toast.success("Cart updated successfully");
     } catch {
@@ -63,30 +66,38 @@ export function CartSheet() {
     }
   };
 
-  const handleUnlockAndRemoveCourt = async (courtId: string, timeSlots: {id: string}[]) => {
+  const handleUnlockAndRemoveCourt = async (
+    courtId: string,
+    selectedDate: string,
+    timeSlots: { id: string }[],
+  ) => {
     try {
-      await Promise.all(timeSlots.map(slot => unlockTimeSlotMutation.mutateAsync(slot.id)));
-      removeCourt(courtId);
+      await Promise.all(timeSlots.map((slot) => unlockTimeSlotMutation.mutateAsync(slot.id)));
+      removeCourt(courtId, selectedDate);
     } catch {
       toast.error("Failed to unlock some slots");
-      removeCourt(courtId);
+      removeCourt(courtId, selectedDate);
     }
   };
 
-  const handleUnlockAndRemoveSlot = async (courtId: string, slotId: string) => {
+  const handleUnlockAndRemoveSlot = async (
+    courtId: string,
+    selectedDate: string,
+    slotId: string,
+  ) => {
     try {
       await unlockTimeSlotMutation.mutateAsync(slotId);
-      removeTimeSlot(courtId, slotId);
+      removeTimeSlot(courtId, selectedDate, slotId);
     } catch {
       toast.error("Failed to unlock slot");
-      removeTimeSlot(courtId, slotId);
+      removeTimeSlot(courtId, selectedDate, slotId);
     }
   };
 
   const handleClearCart = async () => {
-    const allSlots = items.flatMap(item => item.timeSlots);
+    const allSlots = items.flatMap((item) => item.timeSlots);
     try {
-      await Promise.all(allSlots.map(slot => unlockTimeSlotMutation.mutateAsync(slot.id)));
+      await Promise.all(allSlots.map((slot) => unlockTimeSlotMutation.mutateAsync(slot.id)));
       clearCart();
     } catch {
       clearCart();
@@ -140,7 +151,10 @@ export function CartSheet() {
           ) : (
             <>
               {items.map((item) => (
-                <div key={item.court.id} className="bg-card rounded-xl border p-3 shadow-sm">
+                <div
+                  key={`${item.court.id}-${item.selectedDate}`}
+                  className="bg-card rounded-xl border p-3 shadow-sm"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
                       <Link
@@ -186,7 +200,13 @@ export function CartSheet() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => handleUnlockAndRemoveCourt(item.court.id, item.timeSlots)}
+                          onClick={() =>
+                            handleUnlockAndRemoveCourt(
+                              item.court.id,
+                              item.selectedDate,
+                              item.timeSlots,
+                            )
+                          }
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -208,7 +228,9 @@ export function CartSheet() {
                             <button
                               type="button"
                               className="text-muted-foreground hover:bg-muted hover:text-foreground ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full transition-colors"
-                              onClick={() => handleUnlockAndRemoveSlot(item.court.id, slot.id)}
+                              onClick={() =>
+                                handleUnlockAndRemoveSlot(item.court.id, item.selectedDate, slot.id)
+                              }
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
