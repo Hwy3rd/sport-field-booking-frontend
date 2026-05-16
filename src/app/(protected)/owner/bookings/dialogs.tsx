@@ -4,6 +4,7 @@ import type { UseFormReturn } from "react-hook-form";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/shared/empty-state";
+import { BookingDetailDialog } from "@/components/shared/booking-detail-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -192,43 +193,11 @@ export function OwnerBookingsDialogs(props: OwnerBookingsDialogsProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!detailBookingId} onOpenChange={(open) => !open && setDetailBookingId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Booking detail</DialogTitle>
-            <DialogDescription>Data loaded from booking detail API.</DialogDescription>
-          </DialogHeader>
-          {detailQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ) : detailQuery.data ? (
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="font-medium">Booking ID:</span> {detailQuery.data.id}
-              </div>
-              <div>
-                <span className="font-medium">Status:</span> {detailQuery.data.status}
-              </div>
-              <div>
-                <span className="font-medium">Total price:</span> {detailQuery.data.totalPrice.toLocaleString()} VND
-              </div>
-              <div className="space-y-1 rounded-lg border p-3">
-                <div className="font-medium">Items</div>
-                {detailQuery.data.items.map((item) => (
-                  <div key={item.id} className="text-muted-foreground text-xs">
-                    Court {item.courtId.slice(0, 8)} - {item.slotDate} {item.startTime}-{item.endTime}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <EmptyState title="No detail found" />
-          )}
-        </DialogContent>
-      </Dialog>
+      <BookingDetailDialog
+        booking={detailQuery.data as any}
+        open={!!detailBookingId}
+        onOpenChange={(open) => !open && setDetailBookingId(null)}
+      />
     </>
   );
 }

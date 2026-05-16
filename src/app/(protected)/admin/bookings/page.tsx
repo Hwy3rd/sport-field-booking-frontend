@@ -36,7 +36,7 @@ import {
   useDeleteMultipleBookings,
 } from "@/hooks/useBooking";
 import type { BookingStatus } from "@/lib/constants/booking.constant";
-import { BookingDetailDialog } from "./dialogs/booking-detail-dialog";
+import { BookingDetailDialog } from "@/components/shared/booking-detail-dialog";
 import { BookingFilterDialog } from "./dialogs/booking-filter-dialog";
 import { BookingFormDialog } from "./dialogs/booking-form-dialog";
 
@@ -253,9 +253,9 @@ export default function AdminBookingsPage() {
         isCreating={createBookingMutation.isPending}
       />
       <BookingDetailDialog
-        detailBookingId={detailBookingId}
-        setDetailBookingId={setDetailBookingId}
-        bookingDetailQuery={bookingDetailQuery}
+        booking={bookingDetailQuery.data as any}
+        open={!!detailBookingId}
+        onOpenChange={(open) => !open && setDetailBookingId(null)}
       />
 
       <AlertDialog open={deleteSelectedOpen} onOpenChange={setDeleteSelectedOpen}>

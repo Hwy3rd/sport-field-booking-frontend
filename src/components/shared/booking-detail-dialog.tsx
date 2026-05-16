@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Loader2, CreditCard } from "lucide-react";
 import { useCancelBooking, useRefundBooking, useBookingDetail } from "@/hooks/useBooking";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +47,8 @@ export function BookingDetailDialog({ booking: initialBooking, open, onOpenChang
   const cancelBookingMutation = useCancelBooking();
   const refundBookingMutation = useRefundBooking();
   const createPaymentUrlMutation = useCreatePaymentUrl();
+  const { isAdmin, isOwner } = useAuth();
+  const isPowerUser = isAdmin || isOwner;
 
   // Nạp động dữ liệu chi tiết sâu (bao gồm items, timeSlot, court, venue) khi mở dialog
   const { data: detailedBooking, isLoading: isLoadingDetail } = useBookingDetail(
@@ -72,7 +75,7 @@ export function BookingDetailDialog({ booking: initialBooking, open, onOpenChang
   }
 
   const hoursUntilPlay = minPlayTime ? minPlayTime.diff(now, "hour", true) : 0;
-  const isRefundable = hoursUntilPlay >= 24;
+  const isRefundable = isPowerUser || hoursUntilPlay >= 24;
 
   const handleCancelBooking = async () => {
     try {
@@ -258,7 +261,13 @@ export function BookingDetailDialog({ booking: initialBooking, open, onOpenChang
                 {booking.status === BOOKING_STATUS.CONFIRMED && isRefundable && (
                   <span className="text-emerald-600 flex items-center gap-1.5 font-medium bg-emerald-50 dark:bg-emerald-950/50 p-2 rounded-lg">
                     <Info className="h-4 w-4 shrink-0" />
-                    Đủ điều kiện hủy & nhận lại 100% tiền hoàn trả.
+                    {isPowerUser ? "Quyền Admin/Owner: Đủ điều kiện hủy & hoàn trả tiền." : "Đủ điều kiện hủy & nhận lại 100% tiền hoàn trả."}
+                  </span>
+                )}
+                {isPowerUser && booking.status === BOOKING_STATUS.CONFIRMED && hoursUntilPlay < 24 && (
+                  <span className="text-amber-600 flex items-center gap-1.5 font-medium bg-amber-50 dark:bg-amber-950/50 p-2 rounded-lg mt-2">
+                    <Info className="h-4 w-4 shrink-0" />
+                    Lưu ý: Trận đấu sắp diễn ra ({Math.round(hoursUntilPlay)}h nữa).
                   </span>
                 )}
               </div>
